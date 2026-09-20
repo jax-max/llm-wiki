@@ -17,6 +17,12 @@ SCHEMA = """# Wiki Schema
 | StateMachine | `state-machines` | The states and lifecycle transitions of an entity. |
 | Event | `events` | A time-bounded occurrence. |
 
+StateMachine and Workflow both order behavior. Choose StateMachine when the
+subject is one entity whose named states advance by trigger and guard — it must
+anchor to a single Entity via `state-machine-of`. Choose Workflow when
+participants collaborate in ordered steps; a process that names no entity
+states is a Workflow even when its order is fixed.
+
 ## Required Metadata
 
 `Type`, `Raw`, and `Updated` are required blockquote fields on every typed

@@ -53,7 +53,10 @@ boundary of that business object. Workflows describe cross-entity cooperation;
 Rules describe decisions, mechanisms, strategies, and algorithms;
 StateMachines describe entity lifecycles; Events describe business-significant
 domain occurrences (and may be refined into concrete instances when a source
-supplies their time and context).
+supplies their time and context). StateMachines and Workflows both order
+behavior: a StateMachine must anchor to one entity and advance by trigger and
+guard, while a process that names no entity states is a Workflow even when its
+order is fixed.
 
 Every typed page declares `Type`, `Raw` links, and the `Updated` compile date
 — all three required. `Domain` is derived from its path; `Aliases` and

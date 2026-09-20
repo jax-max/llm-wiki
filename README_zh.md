@@ -48,7 +48,9 @@ Entity 归属一个主领域，其他领域通过链接引用而非复制。仅�
 该知识时才新建领域。领域的 overview 拥有
 该业务对象的定义与边界。Workflow 描述跨实体协作；Rule 描述决策、机制、
 策略与算法；StateMachine 描述实体生命周期；Event 描述有业务意义的领域事件
-（当来源提供时间与上下文时，可细化为具体实例）。
+（当来源提供时间与上下文时，可细化为具体实例）。StateMachine 与 Workflow
+都在为行为排序：StateMachine 必须锚定到单个实体，由触发条件与守卫条件推进
+状态；凡不落到实体状态上的流程，即使步骤顺序固定，也是 Workflow。
 
 每个类型化页面声明 `Type`、`Raw` 原文链接与 `Updated` 编译日期，三者必填。
 `Domain` 由路径推导；`Aliases`、`Sources` 可选。`Type` 是唯一的结构化分类。
