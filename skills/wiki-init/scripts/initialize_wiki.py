@@ -33,20 +33,22 @@ digests. Type is the only structured classification.
 |---|---|---|---|
 | part-of | Any | Any | has-part |
 | has-part | Any | Any | part-of |
-| uses | Workflow | Entity, Rule, StateMachine | None |
-| governs | Rule | Entity, Workflow | governed-by |
-| governed-by | Entity, Workflow | Rule | governs |
+| uses | Workflow | Entity, Rule, StateMachine, Workflow | None |
+| governs | Rule | Entity, Workflow, StateMachine | governed-by |
+| governed-by | Entity, Workflow, StateMachine | Rule | governs |
 | has-state-machine | Entity | StateMachine | state-machine-of |
 | state-machine-of | StateMachine | Entity | has-state-machine |
 | related-to | Any | Any | related-to |
-| occurred-in | Event | Entity | None |
+| occurred-in | Event | Entity, Workflow | None |
 
 Relations belong in `## Relations` as `- verb: [Target](relative-path.md)`.
 Use `## Steps` (an ordered list) on Workflow pages, `## Rule` on Rule pages,
 and `## States` plus `## Transitions` tables on StateMachine pages. Write
 time-bounded facts as Event pages; relations themselves are unqualified,
 durable statements. The `Inverse` column is query-time help only: do not
-duplicate reverse links in pages.
+duplicate reverse links in pages. An inverse of `None` means the verb has no
+named opposite, not that the edge is one-way to queries: traverse it from
+either end.
 """
 INDEX = "# Knowledge Base Index\n\n## Domains\n\n"
 LOG = "# Wiki Log\n"

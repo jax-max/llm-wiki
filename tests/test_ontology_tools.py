@@ -128,11 +128,12 @@ class SchemaLintTest(unittest.TestCase):
 
     def test_accepts_all_new_types_and_specialized_relations(self):
         self.write("entities", "widget.md", page("Widget", "Entity", "## Overview\n\nA business object."))
-        self.write("rules", "eligibility.md", page("Eligibility", "Rule", RULE, "- governs: [Widget](../entities/widget.md)\n"))
-        self.write("state-machines", "widget.md", page("Widget lifecycle", "StateMachine", STATE_MACHINE, "- state-machine-of: [Widget](../entities/widget.md)\n"))
-        self.write("workflows", "process.md", page("Widget process", "Workflow", WORKFLOW, "- uses: [Widget](../entities/widget.md)\n- uses: [Eligibility](../rules/eligibility.md)\n- uses: [Widget lifecycle](../state-machines/widget.md)\n"))
-        self.write("events", "created.md", page("Widget created", "Event", "## Overview\n\nCreated on request.", "- occurred-in: [Widget](../entities/widget.md)\n"))
-        self.index("domains/science/entities/widget.md", "domains/science/rules/eligibility.md", "domains/science/state-machines/widget.md", "domains/science/workflows/process.md", "domains/science/events/created.md")
+        self.write("rules", "eligibility.md", page("Eligibility", "Rule", RULE, "- governs: [Widget](../entities/widget.md)\n- governs: [Widget lifecycle](../state-machines/widget.md)\n"))
+        self.write("state-machines", "widget.md", page("Widget lifecycle", "StateMachine", STATE_MACHINE, "- state-machine-of: [Widget](../entities/widget.md)\n- governed-by: [Eligibility](../rules/eligibility.md)\n"))
+        self.write("workflows", "process.md", page("Widget process", "Workflow", WORKFLOW, "- uses: [Widget](../entities/widget.md)\n- uses: [Eligibility](../rules/eligibility.md)\n- uses: [Widget lifecycle](../state-machines/widget.md)\n- uses: [Sub process](sub-process.md)\n"))
+        self.write("workflows", "sub-process.md", page("Sub process", "Workflow", WORKFLOW, ""))
+        self.write("events", "created.md", page("Widget created", "Event", "## Overview\n\nCreated on request.", "- occurred-in: [Widget](../entities/widget.md)\n- occurred-in: [Widget process](../workflows/process.md)\n"))
+        self.index("domains/science/entities/widget.md", "domains/science/rules/eligibility.md", "domains/science/state-machines/widget.md", "domains/science/workflows/process.md", "domains/science/workflows/sub-process.md", "domains/science/events/created.md")
         result = run(SCHEMA, self.root, "--strict")
         self.assertEqual(result.returncode, 0, result.stdout)
 

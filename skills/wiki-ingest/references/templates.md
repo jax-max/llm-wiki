@@ -108,7 +108,7 @@ this).
 
 ## Relations
 
-- occurred-in: [{Entity}](relative-path.md)
+- occurred-in: [{Entity or Workflow}](relative-path.md)
 ```
 
 Use an Event page for a domain event type when the source describes a meaningful

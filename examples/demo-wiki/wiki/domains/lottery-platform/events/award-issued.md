@@ -4,7 +4,7 @@
 > Aliases: sendAward; SendResult
 > Sources: 美团技术团队（文彬、子维），2017-12-22
 > Raw: [领域驱动设计在互联网业务开发中的实践](../../../../raw/meituan-tech/2026-09-18-ddd-in-practice.md)
-> Updated: 2026-09-18
+> Updated: 2026-09-20
 
 ## Overview
 
@@ -15,4 +15,5 @@
 - occurred-in: [抽奖活动](../entities/lottery-activity.md)
 - occurred-in: [用户](../entities/user.md)
 - occurred-in: [奖品](../entities/award.md)
+- occurred-in: [用户参与抽奖](../workflows/user-participation.md)
 - related-to: [用户参与抽奖事件](lottery-participation.md)
