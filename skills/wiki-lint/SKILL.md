@@ -33,6 +33,11 @@ duplicate entities, conflicting claims, or relation semantics. Report them for
 the user. Treat evidence-check fidelity suspects as leads requiring contextual
 judgment, not automatic errors.
 
+The scripts check structure, literal evidence, integrity, and compile freshness.
+They cannot resolve semantic conflicts or prove that an update preserved all
+supported knowledge. A passing lint result does not establish current business
+validity or the correctness of a merge.
+
 For every ingest entry, verify the `### Coverage` table
 has every declared Page Type, valid dispositions, correctly typed links, and
 all pages grounded in the entry's Raw. Missing coverage is a strict-mode

@@ -170,15 +170,38 @@ page structure, links, and evidence. Inverse names are query-time traversal
 hints, not duplicated edges.
 
 This is not RDF/OWL or a graph database. Use an `Event` page for a meaningful
-business occurrence; capture a concrete instance when a claim needs time,
-participants, or other context. Ordinary relations are durable and
-unqualified. Each new ingest records a Page-Type
+business occurrence, as an event type or a concrete instance grounded in the
+source. Conditions, exceptions, and source-stated effective dates stay with the
+Entity, Rule, Workflow, or StateMachine they qualify; a date or condition alone
+does not make an Event. A rule's publication, activation, or revision can be an
+Event when the source explicitly describes that occurrence and it adds durable
+knowledge. Ordinary relations are durable and unqualified; express conditional
+relationships in the owning page's prose with links instead of asserting an
+unconditional edge. Each new ingest records a Page-Type
 coverage matrix in `wiki/log.md`; schema lint verifies its links, dispositions,
 and Raw-page coverage. Run either checker with `--strict` to make findings
 fail CI.
 
-There is deliberately no model for versioning, permissions, or temporal
-validity (see the fifth row of the table above).
+When updating a page, read its existing content and the relevant old Raw
+evidence. Preserve supported knowledge and its source links even if a new source
+does not mention it. Keep different scopes distinct; mark a conclusion as
+corrected or superseded only with explicit source or user support, retaining
+the necessary history and evidence. Unresolved same-scope contradictions remain
+side by side with source links and an explanation, and the ingest log uses
+`Disposition: Disputed` with a brief conflict note. Ingest order does not decide
+which conclusion is correct. Queries preserve material conditions, explain
+unresolved conflicts with their evidence, and report unknown applicability or
+temporal validity as unknown.
+
+There is deliberately no versioning system, access control, or automatic
+temporal-validity reasoning (see the fifth row of the table above). Source-stated
+effective dates can be recorded in prose. `Updated` is a compile date, not a
+business effective date. The checkers validate structure, literal evidence,
+integrity, and compile freshness; passing lint does not prove semantic
+consistency, correct merging, or current business validity.
+
+For an existing wiki, update only the corresponding schema guidance to adopt
+these semantics; no format migration or automatic page reclassification is needed.
 
 ## Development
 

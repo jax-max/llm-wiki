@@ -26,3 +26,9 @@ bounded knowledge area. Pages are only `Entity`, `Workflow`, `Rule`,
 `StateMachine`, or `Event`. Entity pages own business definitions; workflows,
 rules, state machines, and domain events capture business behavior. Use `wiki/schema.md` as
 the authority for metadata and relation signatures.
+
+Apply Occam's razor (如无必要，勿增实体): among representations that preserve
+the evidence and relevant business distinctions equally well, prefer fewer
+assumptions and unnecessary modeling constructs. This is a preference, not a
+guarantee of truth or a reason to discard evidence. See `wiki-ingest` for page
+creation criteria.

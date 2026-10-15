@@ -30,6 +30,11 @@ today's date every time a page is created or recompiled, and it must not
 predate the latest ingest of any linked Raw (the evidence checker verifies
 this).
 
+Keep source-stated applicability, exceptions, and effective dates in the owning
+page's prose, next to the knowledge they qualify. Describe conditional
+relationships there with page links, not as unconditional Relations edges.
+No additional metadata fields or sections are required.
+
 ## Entity
 
 ```markdown
@@ -114,6 +119,9 @@ this).
 Use an Event page for a domain event type when the source describes a meaningful
 business occurrence. Add an instance only when the source provides its concrete
 time, participants, or context; do not invent either.
+A date or applicability condition alone does not justify an Event. A rule stays
+in its Rule page; its publication, activation, or revision can be a separate
+Event when the source explicitly describes a meaningful occurrence.
 
 For pages under `domains/<domain>/<type>/`, Raw links ascend from the page to
 the project root as `../../../../raw/...`. Always calculate relative paths from
@@ -143,6 +151,12 @@ Use every Page Type declared in `wiki/schema.md`, not only the five rows shown
 above. `Added`, `Updated`, and `Reused` require one or more typed-page links;
 `N/A` requires a source-grounded rationale. The latest Coverage table for a
 Raw must list every current page grounded in it.
+
+For an unresolved same-scope conflict, use `Disposition: Disputed` and add a
+brief explanation in the log entry before `### Coverage`. Keep both conclusions
+and their source links in the affected page, following the update rules in
+`wiki-ingest`. The conflict note is prose, not a new required field; the Coverage
+format is unchanged.
 
 When the source yields no durable knowledge, log a no-material entry whose
 heading names the raw path (the evidence checker's inventory sweep exempts

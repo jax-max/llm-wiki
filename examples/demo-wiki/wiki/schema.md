@@ -8,13 +8,19 @@
 | Workflow | `workflows` | An ordered collaboration across entities, rules, and state machines. |
 | Rule | `rules` | A business rule, mechanism, strategy, or algorithm. |
 | StateMachine | `state-machines` | The states and lifecycle transitions of an entity. |
-| Event | `events` | A time-bounded occurrence. |
+| Event | `events` | A business-significant occurrence, modeled as an event type or a source-grounded instance. |
 
 StateMachine and Workflow both order behavior. Choose StateMachine when the
 subject is one entity whose named states advance by trigger and guard — it must
 anchor to a single Entity via `state-machine-of`. Choose Workflow when
 participants collaborate in ordered steps; a process that names no entity
 states is a Workflow even when its order is fixed.
+
+Applicability, exceptions, and source-stated effective dates belong in the prose
+of the Entity, Rule, Workflow, or StateMachine they qualify; they do not by
+themselves make an Event. A rule's publication, activation, or revision may be
+an Event when the source explicitly describes a meaningful business occurrence.
+Recording effective dates does not provide automatic temporal-validity reasoning.
 
 ## Required Metadata
 
@@ -42,9 +48,10 @@ digests. Type is the only structured classification.
 
 Relations belong in `## Relations` as `- verb: [Target](relative-path.md)`.
 Use `## Steps` (an ordered list) on Workflow pages, `## Rule` on Rule pages,
-and `## States` plus `## Transitions` tables on StateMachine pages. Write
-time-bounded facts as Event pages; relations themselves are unqualified,
-durable statements. The `Inverse` column is query-time help only: do not
+and `## States` plus `## Transitions` tables on StateMachine pages. Relations
+are unqualified, durable statements. Describe conditional relationships in the
+owning page's prose with links instead of asserting an unconditional edge.
+The `Inverse` column is query-time help only: do not
 duplicate reverse links in pages. An inverse of `None` means the verb has no
 named opposite, not that the edge is one-way to queries: traverse it from
 either end.

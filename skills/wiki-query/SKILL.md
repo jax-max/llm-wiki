@@ -18,6 +18,15 @@ Markdown links such as `[Order workflow](wiki/domains/commerce/workflows/order-p
 Clearly distinguish source-grounded facts from synthesis and report gaps when
 the wiki lacks evidence. Ordinary queries do not write files.
 
+Read the relevant page prose as well as its relations: applicability, exceptions,
+and effective dates may qualify a conclusion without appearing on an edge.
+Preserve conditions that affect the answer. For unresolved conflicts, explain the
+disagreement and cite each conclusion's evidence. Distinguish a documented
+replacement from an unresolved contradiction; do not combine old and replacement
+rules or choose a conclusion by ingest order. Report unknown applicability or
+temporal validity as unknown; a page's `Updated` date is a compile date, not proof
+that its contents are currently effective.
+
 If the user explicitly asks to save an answer, create a typed page only when it
 adds a durable Entity, Workflow, Rule, StateMachine, or Event; otherwise explain that synthesized
 answers remain conversational rather than creating an archive page.
