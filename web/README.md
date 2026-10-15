@@ -1,5 +1,7 @@
 # Wiki chat Web
 
+English | [简体中文](README_zh.md)
+
 A local, single-user chat interface for the repository's `wiki-query` method. Each turn loads `../skills/wiki-query/SKILL.md`, reads the current wiki, and uses only `search_wiki`, `read_document`, and `wiki_relations`. Answers stream over POST/Fetch SSE; citations open in a source panel with relative links and Raw navigation.
 
 ## Run locally (user-operated)
@@ -38,6 +40,12 @@ Start a new conversation after generation stops to clear the current discussion.
 Errors use plain language and suggest a next step. Original source bodies remain
 unchanged. The app does not save conversations or edit the knowledge base.
 Questions and selected evidence are sent to the configured model provider.
+
+The interface follows the browser language on first visit (Chinese or English)
+and can be switched from the header; the choice is stored in the browser and
+restored on return. Switching does not re-translate streamed answers, past
+turns or source bodies, and the wiki name comes from server configuration.
+Answers are written in the language of the question.
 
 ## Configuration
 
@@ -82,3 +90,7 @@ Validation errors before the stream use HTTP status codes; errors after streamin
 ## Validation ownership
 
 Following [CLAUDE.md](../CLAUDE.md), AI runs only `npm test` (core unit tests). The user runs Web/API, frontend, build, browser and live-model checks. See [TESTING.md](TESTING.md) for commands, cases, expected results and current verification status.
+
+## License
+
+MIT — see the repository [LICENSE](../LICENSE). The web app is part of the llm-wiki repository and shares its license.

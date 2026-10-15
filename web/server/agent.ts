@@ -292,7 +292,11 @@ export async function runQuery(
         502,
       );
     }
-    if (!read.has("wiki/schema.md") || !read.has("wiki/index.md") || !searched) {
+    if (
+      !read.has("wiki/schema.md") ||
+      !read.has("wiki/index.md") ||
+      !searched
+    ) {
       const missing = [
         read.has("wiki/schema.md") ? "" : "schema",
         read.has("wiki/index.md") ? "" : "index",

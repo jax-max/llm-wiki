@@ -45,6 +45,14 @@ header {
   border-bottom: 1px solid #e1e6df;
   background: #fcfdfb;
 }
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.lang-toggle {
+  min-width: 44px;
+}
 .brand {
   display: flex;
   gap: 13px;

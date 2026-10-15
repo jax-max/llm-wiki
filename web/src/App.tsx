@@ -1,7 +1,8 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { Fragment, useEffect, useRef, useState } from "react";
+import { useLocale } from "./i18n/useLocale";
 import { renderMarkdown, sourceLink } from "./markdown";
-import { readSSE } from "./sse";
 import { errorMessage, progressMessage, sourceTitle } from "./presentation";
+import { readSSE } from "./sse";
 type Config = { wikiId: string; name: string };
 type Turn = {
   question: string;
@@ -17,8 +18,9 @@ type Doc = {
   total: number;
 };
 export default function App() {
+  const { locale, setLocale, t } = useLocale();
   const [config, setConfig] = useState<Config>();
-  const [fatal, setFatal] = useState("");
+  const [fatal, setFatal] = useState<"connect" | null>(null);
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -34,11 +36,11 @@ export default function App() {
   useEffect(() => {
     fetch("/api/config")
       .then((r) => {
-        if (!r.ok) throw new Error("服务配置不可用");
+        if (!r.ok) throw new Error();
         return r.json();
       })
       .then(setConfig)
-      .catch(() => setFatal("暂时无法连接知识库，请稍后刷新页面。"));
+      .catch(() => setFatal("connect"));
     return () => controller.current?.abort();
   }, []);
   useEffect(() => {
@@ -72,21 +74,21 @@ export default function App() {
       );
     } catch (e) {
       if (token === sourceRequest.current)
-        setSourceError(errorMessage(e, "source"));
+        setSourceError(errorMessage(e, locale, "source"));
     } finally {
       if (token === sourceRequest.current) setSourceBusy(false);
     }
   }
-  function showSourceError(message: string) {
+  function showSourceError(error: unknown) {
     setPanel(true);
-    setSourceError(message);
+    setSourceError(errorMessage(error, locale, "source"));
   }
   async function send(question: string, retry = false) {
     if (!config || busy || !question.trim()) return;
     const abort = new AbortController();
     controller.current = abort;
     setBusy(true);
-    setProgress("正在查找相关内容…");
+    setProgress(t.progress.search);
     setInput("");
     setTurns((old) => [
       ...(retry ? old.slice(0, -1) : old),
@@ -107,21 +109,27 @@ export default function App() {
       });
       await readSSE(response, (event, data) => {
         if (event === "session") session.current = data.sessionId;
-        else if (event === "progress") setProgress(progressMessage(data));
+        else if (event === "progress")
+          setProgress(progressMessage(data, locale));
         else if (event === "delta") {
-          setProgress("正在整理回答…");
-          update((t) => ({ ...t, answer: t.answer + data.text }));
-        } else if (event === "done") update((t) => ({ ...t, status: "done" }));
+          setProgress(t.progress.streaming);
+          update((turn) => ({ ...turn, answer: turn.answer + data.text }));
+        } else if (event === "done")
+          update((turn) => ({ ...turn, status: "done" }));
         else if (event === "error")
-          update((t) => ({ ...t, status: "error", error: errorMessage(data) }));
+          update((turn) => ({
+            ...turn,
+            status: "error",
+            error: errorMessage(data, locale),
+          }));
       });
     } catch (e) {
-      update((t) => ({
-        ...t,
+      update((turn) => ({
+        ...turn,
         status: abort.signal.aborted ? "stopped" : "error",
         error: abort.signal.aborted
-          ? "已停止生成，可以重试或继续提问。"
-          : errorMessage(e),
+          ? t.errors.cancelled
+          : errorMessage(e, locale),
       }));
     } finally {
       setBusy(false);
@@ -151,37 +159,47 @@ export default function App() {
         <div className="brand">
           <span className="logo">W</span>
           <div>
-            <strong>{config?.name || "Wiki 对话"}</strong>
-            <div className="subtitle">知识库问答</div>
+            <strong>{config?.name || t.appTitle}</strong>
+            <div className="subtitle">{t.header.subtitle}</div>
           </div>
         </div>
-        <button onClick={() => void reset()} disabled={busy}>
-          ＋ 新建对话
-        </button>
+        <div className="header-actions">
+          <button
+            type="button"
+            className="lang-toggle"
+            aria-label={t.language.switch}
+            title={t.language.switch}
+            onClick={() => setLocale(locale === "zh" ? "en" : "zh")}
+          >
+            {locale === "zh" ? "EN" : "中"}
+          </button>
+          <button onClick={() => void reset()} disabled={busy}>
+            {t.header.newChat}
+          </button>
+        </div>
       </header>
       <div className="workspace">
         <main>
           <div className="conversation" aria-live="polite">
             {fatal && (
               <p role="alert" className="error">
-                {fatal}
+                {t.fatal.connect}
               </p>
             )}
             {!turns.length && (
               <section className="welcome">
-                <div className="eyebrow">YOUR KNOWLEDGE, CONNECTED</div>
+                <div className="eyebrow">{t.welcome.eyebrow}</div>
                 <h1>
-                  从一个问题开始，
-                  <br />
-                  找到有依据的答案。
+                  {t.welcome.titleLines.map((line, i) => (
+                    <Fragment key={i}>
+                      {i > 0 && <br />}
+                      {line}
+                    </Fragment>
+                  ))}
                 </h1>
-                <p>查找相关资料，并随时查看回答的依据。</p>
+                <p>{t.welcome.lead}</p>
                 <div className="suggestions">
-                  {[
-                    "用户参与抽奖需要满足什么条件？",
-                    "这些规则约束哪些流程？",
-                    "抽奖活动有哪些状态？",
-                  ].map((q) => (
+                  {t.welcome.suggestions.map((q) => (
                     <button
                       key={q}
                       disabled={!config}
@@ -194,37 +212,37 @@ export default function App() {
                 </div>
               </section>
             )}
-            {turns.map((t, i) => (
+            {turns.map((turn, i) => (
               <section className="turn" key={i}>
-                <div className="question">{t.question}</div>
+                <div className="question">{turn.question}</div>
                 <div className="answer-label">
                   WIKI{" "}
                   <span>
-                    {t.status === "running"
-                      ? "查询中"
-                      : t.status === "done"
-                        ? "基于知识库"
-                        : "本轮未完成"}
+                    {turn.status === "running"
+                      ? t.turn.running
+                      : turn.status === "done"
+                        ? t.turn.done
+                        : t.turn.incomplete}
                   </span>
                 </div>
                 <Markdown
-                  text={t.answer}
+                  text={turn.answer}
                   onOpenSource={openSource}
                   onSourceError={showSourceError}
                 />
-                {t.error && (
+                {turn.error && (
                   <div role="alert" className="error">
-                    {t.error}
+                    {turn.error}
                   </div>
                 )}
                 {i === turns.length - 1 &&
                   !busy &&
-                  (t.status === "error" || t.status === "stopped") && (
+                  (turn.status === "error" || turn.status === "stopped") && (
                     <button
                       className="retry"
-                      onClick={() => void send(t.question, true)}
+                      onClick={() => void send(turn.question, true)}
                     >
-                      重试本轮
+                      {t.turn.retry}
                     </button>
                   )}
               </section>
@@ -245,11 +263,11 @@ export default function App() {
             }}
           >
             <textarea
-              aria-label="向知识库提问"
+              aria-label={t.composer.askAria}
               placeholder={
                 last?.status === "error"
-                  ? "可重试本轮，或继续提问…"
-                  : "向知识库提问，或继续追问…"
+                  ? t.composer.retryPlaceholder
+                  : t.composer.placeholder
               }
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -267,25 +285,25 @@ export default function App() {
               maxLength={16000}
             />
             <div className="composer-footer">
-              <span>答案可能有误，请核对引用来源</span>
+              <span>{t.composer.disclaimer}</span>
               {busy ? (
                 <button
                   type="button"
                   className="primary"
                   onClick={() => controller.current?.abort()}
                 >
-                  ■ 停止生成
+                  {t.composer.stop}
                 </button>
               ) : (
                 <button className="primary" disabled={!config || !input.trim()}>
-                  发送 ↑
+                  {t.composer.send}
                 </button>
               )}
             </div>
           </form>
         </main>
         {panel && (
-          <aside aria-label="来源阅读" className="source-panel">
+          <aside aria-label={t.source.panelLabel} className="source-panel">
             <div className="source-toolbar">
               <button
                 disabled={sources.length < 2 || sourceBusy}
@@ -295,11 +313,11 @@ export default function App() {
                   setSourceError("");
                 }}
               >
-                ← 返回
+                {t.source.back}
               </button>
-              <span>来源阅读</span>
+              <span>{t.source.panelLabel}</span>
               <button
-                aria-label="关闭来源"
+                aria-label={t.source.closeAria}
                 onClick={() => {
                   ++sourceRequest.current;
                   setSourceBusy(false);
@@ -316,7 +334,7 @@ export default function App() {
             )}
             {doc && (
               <>
-                <h2>{sourceTitle(doc.title) || "参考资料"}</h2>
+                <h2>{sourceTitle(doc.title) || t.source.fallbackTitle}</h2>
                 <Markdown
                   text={doc.text}
                   from={doc.path}
@@ -328,15 +346,13 @@ export default function App() {
                     disabled={sourceBusy}
                     onClick={() => void openSource(doc.path, true)}
                   >
-                    继续阅读
+                    {t.source.continueReading}
                   </button>
                 )}
               </>
             )}
-            {sourceBusy && <p role="status">正在打开资料…</p>}
-            {!doc && !sourceBusy && !sourceError && (
-              <p>点击回答中的引用阅读来源。</p>
-            )}
+            {sourceBusy && <p role="status">{t.progress.opening}</p>}
+            {!doc && !sourceBusy && !sourceError && <p>{t.source.empty}</p>}
           </aside>
         )}
       </div>
@@ -352,7 +368,7 @@ function Markdown({
   text: string;
   from?: string;
   onOpenSource: (path: string) => void;
-  onSourceError: (message: string) => void;
+  onSourceError: (error: unknown) => void;
 }) {
   return (
     <div
@@ -370,7 +386,7 @@ function Markdown({
             window.open(link.external, "_blank", "noopener,noreferrer");
           else if (link.path) onOpenSource(link.path);
         } catch (e) {
-          onSourceError(errorMessage(e, "source"));
+          onSourceError(e);
         }
       }}
     />

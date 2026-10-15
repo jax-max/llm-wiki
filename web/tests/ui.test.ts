@@ -1,8 +1,12 @@
+// Frontend checks: run by the user via npm run test:client.
+// 注意：每个测试渲染 App 前必须显式设置 locale storage——
+// 默认语言检测依赖 jsdom 的 navigator（en-US），不设置则语言不确定。
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
+import { STORAGE_KEY } from "../src/i18n/index.js";
 const dom = new JSDOM('<!doctype html><div id="root"></div>', {
   url: "http://127.0.0.1:3002",
 });
@@ -88,6 +92,7 @@ test("chat UI streams, stops, retries, follows citations and resets conversation
     }
     throw new Error("Unexpected request " + url);
   };
+  dom.window.localStorage.setItem(STORAGE_KEY, "zh");
   const root = createRoot(document.getElementById("root")!);
   const click = async (element: Element | undefined | null) => {
     assert.ok(element);
@@ -169,5 +174,57 @@ test("chat UI streams, stops, retries, follows citations and resets conversation
   } finally {
     await act(async () => root.unmount());
     globalThis.fetch = originalFetch;
+    dom.window.localStorage.clear();
+  }
+});
+
+test("language toggle switches UI copy, document metadata and persists", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () =>
+    Response.json({
+      wikiId: "default",
+      name: "Demo wiki",
+      model: "fixture",
+    })) as typeof fetch;
+  dom.window.localStorage.setItem(STORAGE_KEY, "zh");
+  const root = createRoot(document.getElementById("root")!);
+  const click = async (element: Element | undefined | null) => {
+    assert.ok(element);
+    await act(async () => {
+      element.dispatchEvent(
+        new dom.window.MouseEvent("click", { bubbles: true }),
+      );
+      await flush();
+    });
+  };
+  const button = (text: string) =>
+    [...document.querySelectorAll("button")].find((e) =>
+      e.textContent?.includes(text),
+    );
+  try {
+    await act(async () => {
+      root.render(React.createElement(App));
+      await flush();
+    });
+    assert.match(document.body.textContent!, /知识库问答/);
+    assert.match(document.body.textContent!, /向知识库提问，或继续追问/);
+    assert.equal(document.documentElement.lang, "zh-CN");
+    assert.equal(document.title, "Wiki 对话");
+    await click(button("EN"));
+    assert.match(document.body.textContent!, /Knowledge base Q&A/);
+    assert.match(document.body.textContent!, /New chat/);
+    assert.match(document.body.textContent!, /Ask the wiki a question/);
+    assert.match(document.body.textContent!, /join the lottery/);
+    assert.doesNotMatch(document.body.textContent!, /知识库问答/);
+    assert.equal(document.documentElement.lang, "en");
+    assert.equal(document.title, "Wiki Chat");
+    assert.equal(dom.window.localStorage.getItem(STORAGE_KEY), "en");
+    await click(button("中"));
+    assert.match(document.body.textContent!, /知识库问答/);
+    assert.equal(dom.window.localStorage.getItem(STORAGE_KEY), "zh");
+  } finally {
+    await act(async () => root.unmount());
+    globalThis.fetch = originalFetch;
+    dom.window.localStorage.clear();
   }
 });

@@ -14,6 +14,7 @@ and check the evidence behind an answer. It uses the repository's `wiki-query`
 Skill to search one local wiki and follow its knowledge relationships.
 
 - Stream answers as they are generated; stop and retry when needed.
+- Bilingual interface (中文/English) that follows the browser language and switches from the header.
 - Follow progress by source title, such as “正在阅读《抽奖尝试计数》”, without file paths or tool names.
 - Open citations, read original sources, and return through related pages in a source panel that also works on narrow screens.
 - Start a new conversation at any time after generation stops. Conversations stay in memory and are not saved across page refreshes.

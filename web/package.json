@@ -1,7 +1,13 @@
 {
   "name": "llm-wiki-web",
-  "private": true,
   "version": "0.1.0",
+  "description": "Local single-user web chat for querying an llm-wiki knowledge base",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jax-max/llm-wiki.git",
+    "directory": "web"
+  },
   "type": "module",
   "engines": {
     "node": ">=22.19.0"
