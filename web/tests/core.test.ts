@@ -40,6 +40,32 @@ test("configuration validation, relative root and public secret isolation", asyn
     loadConfig({ ...env, WIKI_ROOT: "missing" }),
     /WIKI_ROOT/,
   );
+  const budgetedTimeout = await loadConfig({
+    ...env,
+    QUERY_MAX_TOOL_CALLS: "10",
+  });
+  assert.equal(config.maxCalls, 30);
+  assert.equal(config.timeout, 480000);
+  assert.equal(budgetedTimeout.timeout, 180000);
+  assert.equal(
+    (
+      await loadConfig({
+        ...env,
+        QUERY_MAX_TOOL_CALLS: "1000",
+      })
+    ).timeout,
+    3600000,
+  );
+  assert.equal(
+    (
+      await loadConfig({
+        ...env,
+        QUERY_TIMEOUT_MS: "60000",
+        QUERY_MAX_TOOL_CALLS: "1000",
+      })
+    ).timeout,
+    60000,
+  );
 });
 test("Chinese and alias search, prose pagination, real inbound/outbound edges and None inverse", async () => {
   const wiki = new Wiki(config.root);

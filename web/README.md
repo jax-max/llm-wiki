@@ -52,7 +52,7 @@ Questions and selected evidence are sent to the configured model provider.
 | `LLM_API_KEY` | Required; server only |
 | `PORT` | `3002`; backend and production page port |
 | `WEB_PORT` | `5174`; development page port |
-| `QUERY_TIMEOUT_MS` | `180000` |
+| `QUERY_TIMEOUT_MS` | Default `QUERY_MAX_TOOL_CALLS × 15s + 30s` (480000 at the default budget of 30), capped at 3600000; an explicit value takes precedence |
 | `QUERY_MAX_TOOL_CALLS` | `30` |
 
 The startup check requires readable `wiki/schema.md`, `wiki/index.md`, `wiki/domains/`, `raw/`, and the repository Skill. The app does not automatically read credentials from mobi or the user's Pi settings; to reuse a local Pi setup, explicitly copy its protocol, base URL, model and API key into `.env`. `.env` is ignored by Git. The model catalog uses a 131072-token context ceiling and 8192 maximum output tokens; an endpoint with a smaller limit can reject the request, in which case start a new conversation.

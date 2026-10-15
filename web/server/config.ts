@@ -77,6 +77,14 @@ export async function loadConfig(
       throw new Error(`WIKI_ROOT 缺少可读${dir ? "目录" : "文件"}：${p}`);
     }
   }
+  const maxCalls = integer("QUERY_MAX_TOOL_CALLS", 30, 1000);
+  // 未显式配置超时时，按每次工具调用 15 秒模型往返、另加 30 秒用于
+  // 首轮加载与最终回答推算，避免预算未用完就先超时；上限 1 小时。
+  const timeout = integer(
+    "QUERY_TIMEOUT_MS",
+    Math.min(maxCalls * 15_000 + 30_000, 3_600_000),
+    3_600_000,
+  );
   return {
     root,
     wikiId: env.WIKI_ID?.trim() || "default",
@@ -86,8 +94,8 @@ export async function loadConfig(
     model: required("LLM_MODEL"),
     apiKey: required("LLM_API_KEY"),
     ...loadPorts({ ...env, ...fileEnv }),
-    timeout: integer("QUERY_TIMEOUT_MS", 180000, 3600000),
-    maxCalls: integer("QUERY_MAX_TOOL_CALLS", 30, 1000),
+    timeout,
+    maxCalls,
   };
 }
 export const publicConfig = (c: Config) => ({
