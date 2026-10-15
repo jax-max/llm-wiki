@@ -203,7 +203,7 @@ test("query method, event order, completed history and context error", async () 
       () => {},
       fakeFactory({ noTools: true }),
     ),
-    /未完成 wiki-query/,
+    /未完成 wiki-query.*缺失：schema、index、search.*已读：无/,
   );
   await assert.rejects(
     runQuery(
@@ -215,6 +215,17 @@ test("query method, event order, completed history and context error", async () 
       fakeFactory({ error: "context window exceeded" }),
     ),
     /新建对话/,
+  );
+  await assert.rejects(
+    runQuery(
+      config,
+      "问",
+      [],
+      new AbortController(),
+      () => {},
+      fakeFactory({ error: "boom 500" }),
+    ),
+    /模型调用失败.*stopReason=error：boom 500/,
   );
 });
 test("timeout, budget and cancellation do not return incomplete history", async () => {

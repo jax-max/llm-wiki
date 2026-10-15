@@ -184,6 +184,7 @@ export async function runQuery(
           tool: name,
           label,
           path: typeof a.path === "string" ? a.path : undefined,
+          query: typeof a.query === "string" ? a.query : undefined,
         });
         const result = await execute(args);
         signal.throwIfAborted();
@@ -283,15 +284,25 @@ export async function runQuery(
         throw new QueryError("context", "模型上下文容量已超限，请新建对话");
       throw new QueryError(
         "provider",
-        "模型调用失败，请检查连接、认证或额度后重试",
+        `模型调用失败（${
+          last
+            ? `stopReason=${last.stopReason}${last.errorMessage ? `：${last.errorMessage}` : ""}`
+            : "无回复消息"
+        }），请检查连接、认证或额度后重试`,
         502,
       );
     }
-    if (!read.has("wiki/schema.md") || !read.has("wiki/index.md") || !searched)
+    if (!read.has("wiki/schema.md") || !read.has("wiki/index.md") || !searched) {
+      const missing = [
+        read.has("wiki/schema.md") ? "" : "schema",
+        read.has("wiki/index.md") ? "" : "index",
+        searched ? "" : "search",
+      ].filter(Boolean);
       throw new QueryError(
         "method",
-        "模型未完成 wiki-query 必需的读取与检索，本轮回答未验证",
+        `模型未完成 wiki-query 必需的读取与检索，本轮回答未验证（缺失：${missing.join("、")}；已读：${[...read].join("、") || "无"}）`,
       );
+    }
     return structuredClone(session.messages);
   } finally {
     clearTimeout(timer);
