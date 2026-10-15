@@ -123,7 +123,7 @@ Entity 归属一个主领域，其他领域通过链接引用而非复制。仅�
 | Skill | 用途 |
 |---|---|
 | `wiki-init` | 创建空的面向工作流的 wiki 与 schema。 |
-| `wiki-ingest` | 添加来源并编译 Entity、Workflow、Rule、StateMachine 或 Event 页面。 |
+| `wiki-ingest` | 添加来源并编译 Entity、Workflow、Rule、StateMachine 或 Event 页面。Web 界面（`web/`）也支持 URL/文件摄入：Agent 在 staging 副本编译，逐文件 diff 预览确认后写入。 |
 | `wiki-query` | 只读地从本地 wiki 回答问题。 |
 | `wiki-lint` | 检查证据、schema、普通链接与关系结构。 |
 

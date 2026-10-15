@@ -21,6 +21,14 @@ export interface Copy {
     relations: string;
     streaming: string;
     opening: string;
+    ingest: {
+      fetching: string;
+      searching: string;
+      writing: string;
+      updating: string;
+      hashing: string;
+      working: string;
+    };
   };
   composer: {
     askAria: string;
@@ -39,6 +47,38 @@ export interface Copy {
     empty: string;
   };
   fatal: { connect: string };
+  ingest: {
+    openButton: string;
+    dialogLabel: string;
+    intro: string;
+    urlLabel: string;
+    urlPlaceholder: string;
+    fileLabel: string;
+    fileHint: (mb: number) => string;
+    clearFile: string;
+    submit: string;
+    submitting: string;
+    cancel: string;
+    close: string;
+    stopRun: string;
+    runTitle: string;
+    runSource: string;
+    previewTitle: string;
+    added: string;
+    modified: string;
+    statLine: (add: number, del: number) => string;
+    showDiff: string;
+    hideDiff: string;
+    summaryLabel: string;
+    lintLabel: string;
+    warningsLabel: string;
+    apply: string;
+    applying: string;
+    discard: string;
+    applied: string;
+    discarded: string;
+    emptyChanges: string;
+  };
   errors: {
     source: string;
     cancelled: string;
@@ -52,5 +92,14 @@ export interface Copy {
     connection: string;
     unsupported: string;
     fallback: string;
+    duplicate: string;
+    url: string;
+    upload: string;
+    ingest_disabled: string;
+    ingest: string;
+    turns: string;
+    sdk: string;
+    conflict: string;
+    state: string;
   };
 }

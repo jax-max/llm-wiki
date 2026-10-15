@@ -25,6 +25,20 @@ export function progressMessage(
   return progress.search;
 }
 
+export function ingestProgressMessage(
+  data: { tool?: string },
+  locale: Locale,
+): string {
+  const { ingest } = dictionaries[locale].progress;
+  if (data.tool === "WebFetch") return ingest.fetching;
+  if (data.tool === "Write") return ingest.writing;
+  if (data.tool === "Edit") return ingest.updating;
+  if (data.tool === "Bash") return ingest.hashing;
+  if (["Read", "Glob", "Grep"].includes(data.tool || ""))
+    return ingest.searching;
+  return ingest.working;
+}
+
 export function errorMessage(
   error: unknown,
   locale: Locale,
@@ -47,6 +61,15 @@ export function errorMessage(
     message: errors.message,
     connection: errors.connection,
     unsupported: errors.unsupported,
+    duplicate: errors.duplicate,
+    url: errors.url,
+    upload: errors.upload,
+    ingest_disabled: errors.ingest_disabled,
+    ingest: errors.ingest,
+    turns: errors.turns,
+    sdk: errors.sdk,
+    conflict: errors.conflict,
+    state: errors.state,
   };
   return (typeof code === "string" && known[code]) || errors.fallback;
 }

@@ -134,7 +134,7 @@ The lifecycle: `wiki-init` creates the wiki, `wiki-ingest` compiles sources,
 | Skill | Purpose |
 |---|---|
 | `wiki-init` | Creates an empty workflow-oriented wiki and schema. |
-| `wiki-ingest` | Adds sources and compiles Entity, Workflow, Rule, StateMachine, or Event pages. |
+| `wiki-ingest` | Adds sources and compiles Entity, Workflow, Rule, StateMachine, or Event pages. The web app (`web/`) also ingests URLs/files: the agent compiles in a staging copy, applied after a per-file diff preview. |
 | `wiki-query` | Answers from the local wiki without writing. |
 | `wiki-lint` | Checks evidence, schema, ordinary links, and relation structure. |
 

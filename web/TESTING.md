@@ -118,6 +118,25 @@ npm run smoke:live
 
 说明：知识库名称来自服务端配置，来源正文为原文，均不随界面语言切换；回答语言由模型按提问语言自适应。`npm run test:client` 已包含语言解析与切换交互的自动用例，本节为浏览器补充验收。
 
+## 摄入验收（用户执行）
+
+无凭证 UI 全流程使用 fixture（假摄入 agent + demo-wiki 临时副本，不触真实库）：
+
+```sh
+npm run build
+npm run preview:fixture
+```
+
+| 编号 | 操作 | 预期结果 |
+| --- | --- | --- |
+| ING-01 | 打开「＋ 摄入」，分别用 URL 和上传 .md 文件走完：进度 → 变更预览（逐文件 diff、行数统计）→ 确认写入 | 进度显示自然语言状态；预览列出新增/更新文件与 diff；确认后提示已写入，可在对话中查询到新知识（fixture 写入的是临时副本，重启后消失）；丢弃则提示知识库未改动 |
+| ING-02 | 配置真实 GLM 端点（anthropic-messages 协议），摄入一个真实 URL | SDK 成功启动 CLI 并完成抓取→保存 raw→编译→log 全流程；重点核对 raw 正文忠实度与 log 的 SHA-256；失败时按 README 风险预案排查（CLI spawn、鉴权、WebFetch 小模型） |
+| ING-03 | ING-02 确认应用后，运行 `git -C <WIKI_ROOT> diff` 并回到对话查询新知识 | 产物与预览一致（只新增/修改，不删除）；新知识可被检索且引用可打开；`python3 ../skills/wiki-lint/scripts/check_evidence.py <WIKI_ROOT> --strict` 无证据错误 |
+| ING-04 | 摄入运行中点「取消摄入」；预览页点「丢弃」 | 任务立即终止/预览被丢弃；前后 `git -C <WIKI_ROOT> status` 无任何变化（真实库零污染） |
+| ING-05 | 设置 `INGEST_ENABLED=false`（或 `LLM_API=openai-completions`）重启 | 顶栏无摄入按钮；`POST /api/ingest` 返回 503；查询功能不受影响 |
+| ING-06 | 上传超限或 .pdf 文件；摄入运行中再次提交；预览后手动修改真实库再点确认 | 分别返回 413/400、409 busy、409 conflict（提示重新摄入） |
+| ING-07 | 重复上传相同内容的文件；再次摄入同一 URL | 前者被拒（提示内容与已有 raw 一致）；后者显示"将作为新版本并存"提示，产物中新旧 raw 并存、旧文件未被改动 |
+
 ## 固定端口验收（用户执行）
 
 - `web/.env` 设置 `PORT=3002`、`WEB_PORT=5174`，运行 `npm run dev`：前端固定使用 5174，后端固定使用 3002；重复启动应报端口占用，不应变为其他端口。
@@ -134,4 +153,5 @@ npm run smoke:live
 - 构建：规则补充前通过；后续拆分前端组件和补充测试后的最终构建待用户执行。
 - React 交互、桌面/窄屏视觉与浏览器验收：待用户执行。此前浏览器控制工具连接超时，没有取得视觉验收结果。
 - 语言与双语验收（LANG-01..07）：待用户执行；`test:client` 自动用例随本次双语改造新增。
+- 摄入验收（ING-01..07）：待用户执行。核心单测（diff、staging 生命周期、SHA 预检、上传校验、任务状态机、API）已由 AI 随本次改造新增并全部通过；真实 Claude Agent SDK + GLM 端点冒烟（ING-02）未验证。
 - Anthropic / OpenAI 真实模型连接与答案质量：均未验证；没有读取或复用 mobi 凭证。

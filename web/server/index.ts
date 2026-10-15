@@ -1,10 +1,20 @@
 import { loadConfig } from "./config.js";
 import { loadQuerySkill } from "./agent.js";
+import { loadIngestSkill } from "./ingest-sdk.js";
 import { Wiki } from "./wiki.js";
 import { createApp } from "./app.js";
 try {
   const config = await loadConfig();
   await loadQuerySkill();
+  if (config.ingestAvailable)
+    try {
+      await loadIngestSkill();
+    } catch (error) {
+      config.ingestAvailable = false;
+      console.warn(
+        `摄入功能已停用：${error instanceof Error ? error.message : error}`,
+      );
+    }
   await new Wiki(config.root).snapshot();
   const { app, close } = createApp(config);
   const server = app.listen(config.port, "127.0.0.1", () =>

@@ -11,6 +11,7 @@ export const webRoot = fileURLToPath(
   ),
 );
 export const skillPath = path.resolve(webRoot, "../skills/wiki-query/SKILL.md");
+export const ingestSkillDir = path.resolve(webRoot, "../skills/wiki-ingest");
 export type Config = {
   root: string;
   wikiId: string;
@@ -23,6 +24,12 @@ export type Config = {
   webPort: number;
   timeout: number;
   maxCalls: number;
+  ingestEnabled: boolean;
+  ingestAvailable: boolean;
+  ingestMaxUploadMb: number;
+  ingestTimeoutMs: number;
+  ingestMaxTurns: number;
+  ingestValidate: "auto" | "on" | "off";
 };
 export async function loadConfig(
   env: NodeJS.ProcessEnv = process.env,
@@ -85,6 +92,19 @@ export async function loadConfig(
     Math.min(maxCalls * 15_000 + 30_000, 3_600_000),
     3_600_000,
   );
+  const bool = (key: string, fallback: boolean) => {
+    const raw = env[key]?.trim().toLowerCase();
+    if (raw === undefined || raw === "") return fallback;
+    if (["1", "true", "yes", "on"].includes(raw)) return true;
+    if (["0", "false", "no", "off"].includes(raw)) return false;
+    throw new Error(`${key} 必须是布尔值（true/false）`);
+  };
+  const ingestValidate = env.INGEST_VALIDATE?.trim() || "auto";
+  if (!["auto", "on", "off"].includes(ingestValidate))
+    throw new Error("INGEST_VALIDATE 必须是 auto、on 或 off");
+  // 摄入依赖 Claude Agent SDK 的 Anthropic 兼容通道，openai-completions
+  // 协议下不可用；配置阶段降级为不可用而不是启动报错。
+  const ingestEnabled = bool("INGEST_ENABLED", true);
   return {
     root,
     wikiId: env.WIKI_ID?.trim() || "default",
@@ -96,6 +116,12 @@ export async function loadConfig(
     ...loadPorts({ ...env, ...fileEnv }),
     timeout,
     maxCalls,
+    ingestEnabled,
+    ingestAvailable: ingestEnabled && api === "anthropic-messages",
+    ingestMaxUploadMb: integer("INGEST_MAX_UPLOAD_MB", 2, 16),
+    ingestTimeoutMs: integer("INGEST_TIMEOUT_MS", 1_200_000, 3_600_000),
+    ingestMaxTurns: integer("INGEST_MAX_TURNS", 80, 500),
+    ingestValidate: ingestValidate as Config["ingestValidate"],
   };
 }
 export const publicConfig = (c: Config) => ({
@@ -103,4 +129,5 @@ export const publicConfig = (c: Config) => ({
   name: c.name,
   model: c.model,
   api: c.api,
+  ingest: { available: c.ingestAvailable, maxUploadMb: c.ingestMaxUploadMb },
 });

@@ -1,9 +1,14 @@
 import React, { Fragment, useEffect, useRef, useState } from "react";
 import { useLocale } from "./i18n/useLocale";
+import IngestDialog from "./ingest/IngestDialog";
 import { renderMarkdown, sourceLink } from "./markdown";
 import { errorMessage, progressMessage, sourceTitle } from "./presentation";
 import { readSSE } from "./sse";
-type Config = { wikiId: string; name: string };
+type Config = {
+  wikiId: string;
+  name: string;
+  ingest?: { available: boolean; maxUploadMb: number };
+};
 type Turn = {
   question: string;
   answer: string;
@@ -29,6 +34,7 @@ export default function App() {
   const [sourceError, setSourceError] = useState("");
   const [sourceBusy, setSourceBusy] = useState(false);
   const [panel, setPanel] = useState(false);
+  const [ingestOpen, setIngestOpen] = useState(false);
   const session = useRef<string>();
   const controller = useRef<AbortController>();
   const end = useRef<HTMLDivElement>(null);
@@ -153,6 +159,7 @@ export default function App() {
   }
   const doc = sources.at(-1);
   const last = turns.at(-1);
+  const ingest = config?.ingest;
   return (
     <div className="app-shell">
       <header>
@@ -173,6 +180,11 @@ export default function App() {
           >
             {locale === "zh" ? "EN" : "中"}
           </button>
+          {config?.ingest?.available && (
+            <button onClick={() => setIngestOpen(true)}>
+              {t.ingest.openButton}
+            </button>
+          )}
           <button onClick={() => void reset()} disabled={busy}>
             {t.header.newChat}
           </button>
@@ -356,6 +368,13 @@ export default function App() {
           </aside>
         )}
       </div>
+      {ingestOpen && ingest?.available && (
+        <IngestDialog
+          wikiId={config!.wikiId}
+          maxUploadMb={ingest.maxUploadMb}
+          onClose={() => setIngestOpen(false)}
+        />
+      )}
     </div>
   );
 }

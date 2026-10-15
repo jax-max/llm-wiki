@@ -35,6 +35,14 @@ const en: Copy = {
     relations: "Mapping related information…",
     streaming: "Composing the answer…",
     opening: "Opening document…",
+    ingest: {
+      fetching: "Fetching the source…",
+      searching: "Searching wiki pages…",
+      writing: "Writing pages…",
+      updating: "Updating pages…",
+      hashing: "Computing digests…",
+      working: "Organizing the ingest…",
+    },
   },
   composer: {
     askAria: "Ask the wiki",
@@ -55,6 +63,40 @@ const en: Copy = {
   fatal: {
     connect: "Cannot reach the knowledge base right now. Please refresh later.",
   },
+  ingest: {
+    openButton: "＋ Ingest",
+    dialogLabel: "Ingest a source",
+    intro:
+      "Provide a source URL or upload a file. It is preserved as raw evidence, compiled into wiki pages, and written only after you review the preview.",
+    urlLabel: "Source URL",
+    urlPlaceholder: "https://example.com/article",
+    fileLabel: "Or upload a file",
+    fileHint: (mb) => `.md / .txt files up to ${mb} MB`,
+    clearFile: "Clear selected file",
+    submit: "Start ingest",
+    submitting: "Submitting…",
+    cancel: "Cancel",
+    close: "Close",
+    stopRun: "■ Cancel ingest",
+    runTitle: "Ingesting",
+    runSource: "Source",
+    previewTitle: "Changes preview",
+    added: "Added",
+    modified: "Modified",
+    statLine: (add, del) => `+${add} / −${del} lines`,
+    showDiff: "Show diff",
+    hideDiff: "Hide diff",
+    summaryLabel: "Ingest summary",
+    lintLabel: "Evidence check report",
+    warningsLabel: "Notes",
+    apply: "Apply to the wiki",
+    applying: "Applying…",
+    discard: "Discard changes",
+    applied:
+      "Written to the wiki. You can now query the new knowledge in chat.",
+    discarded: "Discarded. The wiki was left unchanged.",
+    emptyChanges: "This ingest produced no page changes (raw evidence only).",
+  },
   errors: {
     source: "Cannot open this document right now. Try another source.",
     cancelled: "Generation stopped. You can retry or keep asking.",
@@ -71,6 +113,16 @@ const en: Copy = {
     unsupported:
       "This browser cannot display answers. Please try another browser.",
     fallback: "Cannot complete the answer right now. Please try again later.",
+    duplicate: "This content already exists in raw. No need to ingest again.",
+    url: "Please provide a valid http(s) URL.",
+    upload: "Only .md / .txt files within the size limit are supported.",
+    ingest_disabled: "Ingest is disabled or the model protocol is unsupported.",
+    ingest: "The ingest failed. Please try again.",
+    turns: "The ingest exceeded its step budget. Please try again.",
+    sdk: "Cannot start the ingest engine. Check the installation and retry.",
+    conflict: "The wiki changed after the preview. Please re-ingest.",
+    state:
+      "This action is not allowed in the current state. Refresh and retry.",
   },
 };
 

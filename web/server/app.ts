@@ -4,20 +4,29 @@ import path from "node:path";
 import { publicConfig, webRoot, type Config } from "./config.js";
 import { runQuery, type Factory, type History } from "./agent.js";
 import { Wiki, QueryError } from "./wiki.js";
+import { IngestStore } from "./ingest.js";
+import { registerIngestRoutes } from "./ingest-routes.js";
+import { claudeAgentQuery, type IngestAgentQuery } from "./ingest-sdk.js";
 type Conversation = {
   wikiId: string;
   history: History;
   lastUsed: number;
   controller?: AbortController;
 };
-export function createApp(c: Config, factory?: Factory) {
+export function createApp(
+  c: Config,
+  factory?: Factory,
+  ingestAgent: IngestAgentQuery = claudeAgentQuery,
+) {
   const app = express();
   app.disable("x-powered-by");
   const sessions = new Map<string, Conversation>();
+  const ingest = new IngestStore(c, ingestAgent);
   const cleanup = setInterval(() => {
     for (const [id, s] of sessions)
       if (!s.controller && Date.now() - s.lastUsed > 30 * 60 * 1000)
         sessions.delete(id);
+    ingest.sweep();
   }, 60000);
   cleanup.unref();
   const close = () => {
@@ -25,6 +34,7 @@ export function createApp(c: Config, factory?: Factory) {
     for (const s of sessions.values())
       s.controller?.abort(new QueryError("cancelled", "服务停止"));
     sessions.clear();
+    ingest.close();
   };
   app.use((req, res, next) => {
     const hosts = new Set([`127.0.0.1:${c.port}`, `localhost:${c.port}`]);
@@ -181,6 +191,7 @@ export function createApp(c: Config, factory?: Factory) {
       );
     }
   });
+  registerIngestRoutes(app, c, ingest);
   app.use("/api", (_req, res) => res.status(404).json({ error: "接口不存在" }));
   app.use(express.static(path.join(webRoot, "dist/client")));
   app.get("*", (_req, res) =>
@@ -193,12 +204,16 @@ export function createApp(c: Config, factory?: Factory) {
       res: express.Response,
       _next: express.NextFunction,
     ) => {
+      const tooLarge =
+        (error as { type?: string } | null)?.type === "entity.too.large";
       const e =
         error instanceof QueryError
           ? error
-          : new QueryError("request", "请求无效", 400);
+          : tooLarge
+            ? new QueryError("upload", "上传文件超过大小限制", 413)
+            : new QueryError("request", "请求无效", 400);
       res.status(e.status).json({ error: e.message, code: e.code });
     },
   );
-  return { app, close, sessions };
+  return { app, close, sessions, ingest };
 }
