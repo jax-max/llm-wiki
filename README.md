@@ -86,16 +86,22 @@ directory to install the whole suite (see Quick start).
 
 ## Example: demo-wiki
 
-`examples/demo-wiki/` compiles one full Chinese article — a Meituan tech-blog
-post on domain-driven design in a lottery platform — into the
-`lottery-platform` domain: 5 Entity, 1 Workflow, 4 Rule, and 2 Event pages,
-all indexed in `wiki/index.md`. Its `state-machines/` directory is deliberately
-empty because the source describes no independently verifiable lifecycle
-transitions — a live demonstration that an N/A disposition requires an honest,
-grounded reason.
+`examples/demo-wiki/` demonstrates all five page types in the
+`lottery-platform` domain: 5 Entity, 1 Workflow, 4 Rule, 1 StateMachine, and
+2 Event pages, all indexed in `wiki/index.md`.
 
-Because the source article is in Chinese, you can open any page and check the
-verbatim evidence rules against the original text side by side.
+The full Chinese Meituan article on domain-driven design provides the business
+objects, participation workflow, rules, and the participation and award-issuance
+behaviors modeled as Event types. These Event pages illustrate business
+occurrences and their context; they do not claim an event-message implementation
+or a real dated transaction. `sendAward` is a method and `SendResult` is output,
+not event aliases.
+
+The article does not define lifecycle states or transitions. A separate,
+explicitly fictional teaching specification in `raw/demo-spec/` supplies the
+activity lifecycle used by the StateMachine example. Its page identifies that
+source so readers can distinguish the teaching assumptions from the article.
+Open the Chinese pages alongside their linked Raw sources to inspect the evidence.
 
 ```bash
 # Read-only checks against the example.

@@ -78,13 +78,18 @@ Entity 归属一个主领域，其他领域通过链接引用而非复制。仅�
 
 ## 示例：demo-wiki
 
-`examples/demo-wiki/` 把一篇完整的中文文章——美团技术博客《领域驱动设计在
-互联网业务开发中的实践》——编译为 `lottery-platform` 领域：5 个 Entity、
-1 个 Workflow、4 个 Rule、2 个 Event 页面，全部收录在 `wiki/index.md`。
-它的 `state-machines/` 目录刻意留空，因为原文没有给出可独立验证的生命周期
-状态迁移——这正是"N/A 处置必须给出诚实理由"的活示范。
+`examples/demo-wiki/` 在 `lottery-platform` 领域演示全部五种页面类型：
+5 个 Entity、1 个 Workflow、4 个 Rule、1 个 StateMachine、2 个 Event 页面，
+全部收录在 `wiki/index.md`。
 
-示例原文即中文，你可以打开任意页面，与 `raw/` 原文逐条对照验证"逐字一致"校验。
+美团技术博客《领域驱动设计在互联网业务开发中的实践》全文提供业务对象、参与
+流程和规则，以及建模为 Event 类型的用户参与和奖品发放行为。Event 页展示业务
+发生及其上下文，不声称原文实现了事件消息，也不虚构某次带日期的交易记录。
+`sendAward` 是方法，`SendResult` 是输出，均不作为事件别名。
+
+原文没有定义生命周期状态与迁移，因此另在 `raw/demo-spec/` 提供明确标注为
+虚构教学设定的活动生命周期规格，用于演示 StateMachine。对应页面标明补充来源，
+让读者区分教学假设与原文知识。可打开中文页面，与各自链接的 Raw 来源逐条对照。
 
 ```bash
 # 对示例运行只读检查。

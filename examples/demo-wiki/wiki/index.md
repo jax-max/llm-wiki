@@ -14,5 +14,6 @@
 - [活动准入](domains/lottery-platform/rules/activity-admission.md)
 - [参与频率风控](domains/lottery-platform/rules/participation-risk-control.md)
 - [抽奖尝试计数](domains/lottery-platform/rules/lottery-attempt-counting.md)
+- [抽奖活动生命周期（教学设定）](domains/lottery-platform/state-machines/lottery-activity.md)
 - [用户参与抽奖事件](domains/lottery-platform/events/lottery-participation.md)
 - [奖品发放事件](domains/lottery-platform/events/award-issued.md)
