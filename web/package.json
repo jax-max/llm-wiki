@@ -1,0 +1,58 @@
+{
+  "name": "llm-wiki-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "dev": "concurrently -k \"tsx watch server/index.ts\" \"vite\"",
+    "build": "tsc --noEmit && vite build && tsc -p tsconfig.server.json",
+    "start": "NODE_ENV=production node dist/server/index.js",
+    "test": "node --import tsx --test tests/core.test.ts",
+    "format": "prettier --write \"{src,server,tests,scripts}/**/*.{ts,tsx,css}\" \"*.{json,ts,js,html}\"",
+    "format:check": "prettier --check \"{src,server,tests,scripts}/**/*.{ts,tsx,css}\" \"*.{json,ts,js,html}\"",
+    "smoke:live": "tsx scripts/smoke-live.ts",
+    "preview:fixture": "tsx tests/preview.ts",
+    "test:web": "node --import tsx --test tests/http.test.ts tests/protocol.test.ts",
+    "test:client": "node --import tsx --test tests/markdown.test.ts tests/presentation.test.ts tests/ui.test.ts"
+  },
+  "dependencies": {
+    "@earendil-works/pi-ai": "1.1.0",
+    "@earendil-works/pi-coding-agent": "1.1.0",
+    "dompurify": "3.3.1",
+    "dotenv": "16.4.5",
+    "express": "4.21.2",
+    "marked": "18.0.12",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "typebox": "1.3.27"
+  },
+  "devDependencies": {
+    "@types/express": "4.17.21",
+    "@types/jsdom": "21.1.7",
+    "@types/node": "22.19.0",
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "@vitejs/plugin-react": "4.7.0",
+    "autoprefixer": "10.4.22",
+    "concurrently": "9.2.1",
+    "jsdom": "26.1.0",
+    "postcss": "8.5.6",
+    "prettier": "3.6.2",
+    "tailwindcss": "3.4.18",
+    "tsx": "4.20.6",
+    "typescript": "5.9.3",
+    "vite": "6.4.1"
+  },
+  "overrides": {
+    "@earendil-works/chord": "1.1.0",
+    "@earendil-works/pi-agent-core": "1.1.0",
+    "@earendil-works/pi-ai": "1.1.0",
+    "@earendil-works/pi-codemode": "1.1.0",
+    "@earendil-works/pi-mcp": "1.1.0",
+    "@earendil-works/pi-telemetry": "1.1.0",
+    "@earendil-works/pi-tui": "1.1.0"
+  }
+}

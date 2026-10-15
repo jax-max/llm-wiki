@@ -7,6 +7,64 @@
 Rule（规则）、StateMachine（状态机）、Event（事件）页面，让知识持续复利，
 而不是每次查询都被重新发现。
 
+## 在浏览器中问知识库
+
+独立的 [`web/` 应用](web/README.md) 支持提问、连续追问和核对回答依据，
+使用仓库现有的 `wiki-query` Skill 搜索一个本地 Wiki，并沿知识关系查找相关资料。
+
+- 回答逐步显示，支持停止生成和重试。
+- 查询进度展示资料标题，例如“正在阅读《抽奖尝试计数》”，不展示文件路径或工具名称。
+- 点击引用即可阅读来源、继续打开关联资料并返回上一页；窄屏下来源面板全屏显示。
+- 停止生成后可新建对话；对话只保留在内存中，刷新页面后不保留。
+
+### 本地启动
+
+需要 **Node.js 22.19 或更高版本**。以下命令在**仓库根目录**执行：
+
+```sh
+npm --prefix web ci
+cp -n web/.env.example web/.env
+# 编辑 web/.env，填写 LLM_BASE_URL、LLM_MODEL 和 LLM_API_KEY。
+npm --prefix web run dev
+```
+
+复制命令不会覆盖已有的 `.env`。如果已经配置好，直接运行
+`npm --prefix web run dev`，然后打开 **http://127.0.0.1:5174**。
+仓库根目录没有 `package.json`；使用普通的 `npm run dev` 时，须先进入 `web/`。
+
+配置保存在 `web/.env`，相对路径均以 `web/` 为基准。
+默认查询 `examples/demo-wiki`，修改 `WIKI_ROOT` 可切换到自己的 Wiki。
+协议可选 `anthropic-messages`（服务根地址不带 `/v1`）或
+`openai-completions`（填写提供方的 API 基础地址，通常带 `/v1`）。
+密钥仅在服务端使用。`web/.env` 中的 `PORT=3002` 固定后端及生产页面端口，
+`WEB_PORT=5174` 固定开发页面端口，两者不能相同。端口被占用时直接报错，
+不会自动更换端口；修改配置后需要重启。
+
+可以先问“用户参与抽奖需要满足什么条件？”，再追问“这些规则约束哪些流程？”；
+也可以问“抽奖活动有哪些状态？”，然后追问“这个结论的原始依据是什么？”。
+示例中的活动生命周期来自明确标注的教学补充来源，回答应说明这一点，不能归因于原技术文章。
+
+应用仅在本机运行，只读取知识库；知识摄取和维护继续使用现有 Skills。
+模型请求会将问题与选取的资料发送给所配置的模型提供方。
+完整配置、使用边界和接口说明见 [Web 使用指南](web/README.md)。
+
+### 构建与验收
+
+以下命令由用户在仓库根目录执行：
+
+```sh
+npm --prefix web run test:web
+npm --prefix web run test:client
+npm --prefix web run build
+npm --prefix web start
+```
+
+生产页面地址为 **http://127.0.0.1:3002**。AI 仅执行核心功能单元测试
+（`npm --prefix web test`）；Web、前端、浏览器和真实模型验收由用户执行。
+具体操作与预期结果见 [验收案例](web/TESTING.md)，分工约定见
+[CLAUDE.md](CLAUDE.md)。自动化替身测试不代表真实模型连接或答案质量通过，
+这些项目需要用户验收。
+
 ## 为什么不用朴素 RAG？
 
 朴素 RAG（切块 + embedding + 相似度检索）回答的是"什么像"，而不是"什么对"。

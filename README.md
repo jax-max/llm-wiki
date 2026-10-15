@@ -7,6 +7,68 @@ wiki. The model compiles immutable sources into linked Entity, Workflow, Rule,
 StateMachine, and Event pages, so knowledge compounds instead of being
 rediscovered for every query.
 
+## Ask your wiki in the browser
+
+The independent [`web/` app](web/README.md) lets you ask questions, follow up,
+and check the evidence behind an answer. It uses the repository's `wiki-query`
+Skill to search one local wiki and follow its knowledge relationships.
+
+- Stream answers as they are generated; stop and retry when needed.
+- Follow progress by source title, such as “正在阅读《抽奖尝试计数》”, without file paths or tool names.
+- Open citations, read original sources, and return through related pages in a source panel that also works on narrow screens.
+- Start a new conversation at any time after generation stops. Conversations stay in memory and are not saved across page refreshes.
+
+### Start locally
+
+Requires Node.js **22.19 or newer**. Run these commands from the **repository root**:
+
+```sh
+npm --prefix web ci
+cp -n web/.env.example web/.env
+# Fill in LLM_BASE_URL, LLM_MODEL and LLM_API_KEY in web/.env.
+npm --prefix web run dev
+```
+
+The copy command preserves an existing `.env`. If it is already configured,
+just run `npm --prefix web run dev`. Open **http://127.0.0.1:5174**.
+There is no root `package.json`; plain `npm run dev` must be run inside `web/`.
+
+Configuration lives in `web/.env`; relative paths are resolved from `web/`.
+The default wiki is `examples/demo-wiki`. Set `WIKI_ROOT` to use your own wiki.
+Choose `anthropic-messages` with an Anthropic host root (without `/v1`), or
+`openai-completions` with the provider's API base URL (commonly ending in `/v1`).
+Credentials stay on the server. `PORT=3002` fixes the backend/production port;
+`WEB_PORT=5174` fixes the development page port. Set both in `web/.env`.
+An occupied port causes an error instead of an automatic port change.
+Restart after changing the configuration.
+
+Try “用户参与抽奖需要满足什么条件？”, then “这些规则约束哪些流程？”,
+or ask “抽奖活动有哪些状态？” and follow up with “这个结论的原始依据是什么？”.
+The demo lifecycle is an explicit teaching supplement; answers should identify
+that source rather than attributing it to the original technical article.
+
+The app runs on this computer and reads the wiki without editing it. Knowledge
+ingestion and maintenance continue through the existing Skills. Model requests
+send the question and selected evidence to the configured provider. See the
+[Web guide](web/README.md) for configuration, limits and API details.
+
+### Build and validate
+
+The user runs the following commands from the repository root:
+
+```sh
+npm --prefix web run test:web
+npm --prefix web run test:client
+npm --prefix web run build
+npm --prefix web start
+```
+
+The production app is served at **http://127.0.0.1:3002**. AI runs only the core
+unit tests (`npm --prefix web test`); Web, frontend, browser and live-model
+acceptance is user-operated. See [test cases and expected results](web/TESTING.md)
+and [collaboration rules](CLAUDE.md). Automated fixtures do not establish real
+model connection or answer quality; those require user acceptance.
+
 ## Why not plain RAG?
 
 Plain RAG (chunk + embedding + similarity retrieval) answers "what is
