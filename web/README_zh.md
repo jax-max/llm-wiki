@@ -69,6 +69,7 @@ npm start
 | `QUERY_TIMEOUT_MS` | 默认 `QUERY_MAX_TOOL_CALLS × 15s + 30s`（默认预算 30 时为 480000），上限 3600000；显式值优先 |
 | `QUERY_MAX_TOOL_CALLS` | `30` |
 | `INGEST_ENABLED` | `true`；关闭后隐藏入口并拒绝摄入请求 |
+| `INGEST_MODEL` | 默认同 `LLM_MODEL`；摄入 Agent 使用的模型 ID，可与查询的轻量模型区分 |
 | `INGEST_MAX_UPLOAD_MB` | `2`；1–16。上传文件大小上限（multipart 请求体限制） |
 | `INGEST_TIMEOUT_MS` | `1200000`；上限 3600000。单次摄入整体超时 |
 | `INGEST_MAX_TURNS` | `80`；1–500。摄入 Agent 步数上限 |

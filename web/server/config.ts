@@ -19,6 +19,7 @@ export type Config = {
   api: "anthropic-messages" | "openai-completions";
   baseUrl: string;
   model: string;
+  ingestModel: string;
   apiKey: string;
   port: number;
   webPort: number;
@@ -66,6 +67,7 @@ export async function loadConfig(
   } catch {
     throw new Error("LLM_BASE_URL 必须是无凭证、查询和片段的 HTTP(S) 地址");
   }
+  const model = required("LLM_MODEL");
   const root = path.resolve(webRoot, env.WIKI_ROOT || "../examples/demo-wiki");
   for (const [p, dir] of [
     ["wiki/schema.md", false],
@@ -99,6 +101,8 @@ export async function loadConfig(
     if (["0", "false", "no", "off"].includes(raw)) return false;
     throw new Error(`${key} 必须是布尔值（true/false）`);
   };
+  // 摄入 Agent 用更强的模型，查询可继续用轻量模型；未配置时沿用 LLM_MODEL。
+  const ingestModel = env.INGEST_MODEL?.trim() || model;
   const ingestValidate = env.INGEST_VALIDATE?.trim() || "auto";
   if (!["auto", "on", "off"].includes(ingestValidate))
     throw new Error("INGEST_VALIDATE 必须是 auto、on 或 off");
@@ -111,7 +115,8 @@ export async function loadConfig(
     name: env.WIKI_NAME?.trim() || path.basename(root),
     api,
     baseUrl,
-    model: required("LLM_MODEL"),
+    model,
+    ingestModel,
     apiKey: required("LLM_API_KEY"),
     ...loadPorts({ ...env, ...fileEnv }),
     timeout,

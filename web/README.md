@@ -74,6 +74,7 @@ The header button “＋ Ingest” opens the ingest dialog (hidden when `INGEST_
 | `QUERY_TIMEOUT_MS` | Default `QUERY_MAX_TOOL_CALLS × 15s + 30s` (480000 at the default budget of 30), capped at 3600000; an explicit value takes precedence |
 | `QUERY_MAX_TOOL_CALLS` | `30` |
 | `INGEST_ENABLED` | `true`; hides the entry point and rejects ingest requests when off |
+| `INGEST_MODEL` | Defaults to `LLM_MODEL`; model ID used by the ingest agent, so it can differ from the (lighter) query model |
 | `INGEST_MAX_UPLOAD_MB` | `2`; 1–16. Upload size cap (multipart body limit) |
 | `INGEST_TIMEOUT_MS` | `1200000`; capped at 3600000. Overall ingest timeout |
 | `INGEST_MAX_TURNS` | `80`; 1–500. Ingest agent step budget |

@@ -207,5 +207,5 @@ export function ingestEndpoint(c: Config) {
   // The bundled CLI expects the Anthropic host root; strip a trailing /v1
   // the same way the query pipeline's anthropic protocol does.
   const baseUrl = c.baseUrl.replace(/\/v1\/?$/, "");
-  return { baseUrl, apiKey: c.apiKey, model: c.model };
+  return { baseUrl, apiKey: c.apiKey, model: c.ingestModel };
 }

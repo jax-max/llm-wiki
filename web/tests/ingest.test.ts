@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import http from "node:http";
 import { diffLines, formatDiff } from "../server/ingest-diff.js";
+import { ingestEndpoint } from "../server/ingest-sdk.js";
 import { loadConfig, publicConfig } from "../server/config.js";
 import {
   createStaging,
@@ -108,6 +109,12 @@ test("ingest configuration defaults, validation and availability", async () => {
   assert.equal(c.ingestTimeoutMs, 1_200_000);
   assert.equal(c.ingestMaxTurns, 80);
   assert.equal(c.ingestValidate, "auto");
+  // INGEST_MODEL 未配置时沿用 LLM_MODEL，配置后仅作用于摄入端点。
+  assert.equal(c.ingestModel, "test-model");
+  assert.equal(ingestEndpoint(c).model, "test-model");
+  const strong = await loadConfig({ ...baseEnv, INGEST_MODEL: "strong-model" });
+  assert.equal(strong.model, "test-model");
+  assert.equal(ingestEndpoint(strong).model, "strong-model");
   const disabled = await loadConfig({ ...baseEnv, INGEST_ENABLED: "false" });
   assert.equal(disabled.ingestEnabled, false);
   assert.equal(disabled.ingestAvailable, false);
