@@ -28,6 +28,69 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { config, env, fakeFactory } from "./helpers.js";
+test("catalog lists actual readable documents and metadata without exposing content or following symlinks", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "wiki-catalog-"));
+  const outside = await mkdtemp(path.join(os.tmpdir(), "wiki-outside-"));
+  try {
+    await mkdir(path.join(root, "wiki/domains/demo/rules"), {
+      recursive: true,
+    });
+    await mkdir(path.join(root, "raw/source"), { recursive: true });
+    await writeFile(
+      path.join(root, "wiki/index.md"),
+      "# Index\nNo registered links",
+    );
+    await writeFile(
+      path.join(root, "wiki/domains/demo/rules/new.md"),
+      "# 新规则\n> Type: Rule\n\nprivate-body",
+    );
+    await writeFile(
+      path.join(root, "wiki/domains/demo/rules/unknown.md"),
+      "# 未知类型\n> Type: FutureType",
+    );
+    await writeFile(path.join(root, "raw/source/plain.txt"), "plain content");
+    await writeFile(path.join(root, "raw/source/empty.md"), "");
+    await writeFile(path.join(root, "raw/source/image.png"), "not a document");
+    await writeFile(path.join(root, ".env"), "secret");
+    await writeFile(path.join(outside, "outside.md"), "# 外部资料");
+    await symlink(outside, path.join(root, "wiki/domains/escape"));
+    await symlink(
+      path.join(outside, "outside.md"),
+      path.join(root, "raw/source/link.md"),
+    );
+    const wiki = new Wiki(root);
+    const { pages } = await wiki.catalog();
+    assert.equal(pages.length, 5);
+    assert.deepEqual(
+      pages.find((p) => p.title === "新规则"),
+      { path: "wiki/domains/demo/rules/new.md", title: "新规则", type: "Rule" },
+    );
+    assert.equal(pages.find((p) => p.title === "未知类型")?.type, "FutureType");
+    assert.ok(pages.some((p) => p.title === "plain.txt"));
+    assert.ok(pages.some((p) => p.title === "empty.md"));
+    assert.ok(!JSON.stringify(pages).includes("private-body"));
+    assert.ok(!JSON.stringify(pages).includes(root));
+    assert.ok(!JSON.stringify(pages).includes("outside"));
+    await writeFile(
+      path.join(root, "wiki/domains/demo/rules/new.md"),
+      "# 更新规则\n> Type: Rule",
+    );
+    assert.ok((await wiki.catalog()).pages.some((p) => p.title === "更新规则"));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+    await rm(outside, { recursive: true, force: true });
+  }
+});
+test("catalog supports an empty knowledge base", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "wiki-empty-catalog-"));
+  try {
+    await mkdir(path.join(root, "wiki"));
+    await mkdir(path.join(root, "raw"));
+    assert.deepEqual(await new Wiki(root).catalog(), { pages: [] });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
 test("configuration validation, relative root and public secret isolation", async () => {
   assert.equal(config.root, path.resolve(webRoot, "../examples/demo-wiki"));
   assert.ok(!JSON.stringify(publicConfig(config)).includes("test-secret"));

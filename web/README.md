@@ -2,9 +2,9 @@
 
 English | [简体中文](README_zh.md)
 
-A local, single-user chat interface for the repository's `wiki-query` method. Each turn loads `../skills/wiki-query/SKILL.md`, reads the current wiki, and uses only `search_wiki`, `read_document`, and `wiki_relations`. Answers stream over POST/Fetch SSE; citations open in a source panel with relative links and Raw navigation.
+A local, single-user chat interface for the repository's `wiki-query` method. Each turn loads `../skills/wiki-query/SKILL.md`, reads the current wiki, and uses only `search_wiki`, `read_document`, and `wiki_relations`. Answers stream over POST/Fetch SSE; citations open in the central reader with relative links and Raw navigation.
 
-The interface also offers an **ingest entry point**: provide a source URL or upload a `.md`/`.txt` file and it is compiled into the wiki following the `../skills/wiki-ingest` methodology. Compilation runs in a throwaway staging copy driven by a Claude Agent SDK agent; the result is applied to `WIKI_ROOT` only after a per-file diff preview and manual confirmation — cancelling leaves the real library untouched. Chat stays read-only forever.
+The interface also offers an **ingest entry point**: provide a source URL or upload a `.md`/`.txt` file and it is compiled into the wiki following the `../skills/wiki-ingest` methodology. Compilation runs in a throwaway staging copy driven by Claude Agent SDK or the local Codex CLI; the result is applied to `WIKI_ROOT` only after a per-file diff preview and manual confirmation — cancelling leaves the real library untouched. Chat stays read-only forever.
 
 ## Run locally (user-operated)
 
@@ -49,9 +49,19 @@ restored on return. Switching does not re-translate streamed answers, past
 turns or source bodies, and the wiki name comes from server configuration.
 Answers are written in the language of the question.
 
+### Knowledge directory and latest update
+
+The library is the main workspace. The left catalog is the only navigation: categories expand or collapse, and documents open directly in the central reader. The catalog retains title/path filtering. Before a document is selected, the reader shows only a quiet hint: choose a document from the left directory, or use “Knowledge” at the top left when the directory is closed. The header holds Add sources, Ask the knowledge base and the language switch, in that order. The reader toolbar contains only the directory toggle, document location and document back navigation. Navigation is a sidebar at ≥1280px and a drawer on narrower windows. Original sources, index and logs are secondary groups. The catalog scans actual files rather than index links; manually refresh to see external changes.
+
+Ask the knowledge base opens an optional right-hand Q&A panel. Closing it preserves the conversation, draft and document position. Answer citations open sources in the central reader; on narrower windows they close the Q&A overlay to reveal the document. Questions always search the entire library; browsing a category or document does not narrow retrieval.
+
+Add sources opens the ingest dialog. Applying refreshes the catalog and displays added/updated counts. View latest update opens the left catalog, clears its filter, and expands and focuses the latest update group while preserving the current document; selecting a file opens it in the reader. An already-open modified page reloads in place. Only the latest successful ingest is marked, in page memory; reloading clears the markers. Catalog failures have a separate retry and do not hide the applied files in the catalog update group, change the successful apply result or interrupt chat.
+
+`GET /api/catalog?wikiId=…` returns `{ pages: [{ path, title, type? }] }` with relative document paths and metadata only, without full text or absolute paths.
+
 ### Ingest (preview-then-confirm)
 
-The header button “＋ Ingest” opens the ingest dialog (hidden when `INGEST_ENABLED=false` or `LLM_API=openai-completions`). Flow:
+The header’s “Add sources” button opens the ingest dialog (hidden when `INGEST_ENABLED=false`, or when using Claude with `LLM_API=openai-completions`). Flow:
 
 1. Enter a source URL or pick a `.md`/`.txt` file (up to `INGEST_MAX_UPLOAD_MB`). Uploads are written straight to raw by the server with their SHA-256; URLs are fetched by the agent via WebFetch and preserved as raw.
 2. Deterministic pre-checks run before any model call: a body SHA identical to an existing raw is rejected; a URL matching an existing raw's Source produces a "will coexist as a new version" notice.
@@ -74,13 +84,19 @@ The header button “＋ Ingest” opens the ingest dialog (hidden when `INGEST_
 | `QUERY_TIMEOUT_MS` | Default `QUERY_MAX_TOOL_CALLS × 15s + 30s` (480000 at the default budget of 30), capped at 3600000; an explicit value takes precedence |
 | `QUERY_MAX_TOOL_CALLS` | `30` |
 | `INGEST_ENABLED` | `true`; hides the entry point and rejects ingest requests when off |
-| `INGEST_MODEL` | Defaults to `LLM_MODEL`; model ID used by the ingest agent, so it can differ from the (lighter) query model |
+| `INGEST_ENGINE` | `claude` (default) or `codex` |
+| `CODEX_INGEST_MODEL` | Optional, Codex only; omitted uses the CLI default, independently of query/Claude models |
+| `INGEST_MODEL` | Claude only; defaults to `LLM_MODEL`, independently configurable |
 | `INGEST_MAX_UPLOAD_MB` | `2`; 1–16. Upload size cap (multipart body limit) |
-| `INGEST_TIMEOUT_MS` | `1200000`; capped at 3600000. Overall ingest timeout |
-| `INGEST_MAX_TURNS` | `80`; 1–500. Ingest agent step budget |
+| `INGEST_TIMEOUT_MS` | Retired and ignored. Ingest has no application-level overall timeout; cancel manually. Provider/CLI network failures still end the job. |
+| `INGEST_MAX_TURNS` | `80`; 1–500. Claude only; Codex has no application-level step or overall time limit |
 | `INGEST_VALIDATE` | `auto`; `on`/`off` toggles the evidence-check (check_evidence.py) report attached to the preview |
 
-Ingest additionally requires `LLM_API=anthropic-messages` (the Claude Agent SDK only speaks the Anthropic-compatible protocol) and readable `../skills/wiki-ingest/SKILL.md` plus `references/templates.md`; when missing, ingest disables itself and chat keeps working.
+Claude requires `LLM_API=anthropic-messages`. Both engines require readable `../skills/wiki-ingest/SKILL.md` and `references/templates.md`; a missing skill fails the ingest job.
+
+For temporary file ingest using ChatGPT login, install Codex CLI, run `codex login` as the backend user and select ChatGPT, then set `INGEST_ENGINE=codex` in `.env` and restart. No token or key is copied. Queries retain their `LLM_*` configuration. Codex accepts `.md`/`.txt` uploads only; URL input is disabled and URL API requests return 400. Optionally set `CODEX_INGEST_MODEL`; otherwise the CLI default applies. Set `INGEST_ENGINE=claude` to switch back.
+
+Codex CLI must support `exec --json`, `--ignore-user-config`, `--ignore-rules` and `--ephemeral` (check `codex exec --help`). Each run ignores user provider/rule configuration and requires ChatGPT login while retaining the auth directory; custom user model defaults are not loaded. Missing CLI, expired login or unsupported flags fail the job with details in backend `ingest_failed` logs, without fallback to Claude.
 
 The startup check requires readable `wiki/schema.md`, `wiki/index.md`, `wiki/domains/`, `raw/`, and the repository Skill. The app does not automatically read credentials from mobi or the user's Pi settings; to reuse a local Pi setup, explicitly copy its protocol, base URL, model and API key into `.env`. `.env` is ignored by Git. The model catalog uses a 131072-token context ceiling and 8192 maximum output tokens; an endpoint with a smaller limit can reject the request, in which case start a new conversation.
 
@@ -94,12 +110,14 @@ Raw HTML, embedded images and dangerous links are disabled in Markdown. External
 
 ### Ingest write boundaries
 
-Ingest is a separate entry point whose writes are confined to a staging copy until the user confirms, guarded by four fences:
+Ingest is a separate entry point whose writes are confined to a staging copy until the user confirms, with four checks for the Claude engine:
 
-1. **Tool allowlist** — the ingest agent gets only Read/Write/Edit/Glob/Grep/WebFetch/Bash; just the read-only tools are pre-approved, while WebFetch (source domain only), Bash (`sha256sum`/`shasum` only, no chaining or substitution) and every write pass a per-call runtime check;
+1. **Tool allowlist** — the ingest agent gets only Read/Write/Edit/Glob/Grep/WebFetch/Bash; no tools are pre-approved via allowedTools; the permission callback checks WebFetch hosts, digest-only Bash commands (no chaining/substitution), and write paths;
 2. **Runtime path fence** — every tool call is checked before execution; writes outside the staging copy are denied;
 3. **Staging isolation** — the agent sees only a temporary copy of `wiki/` and `raw/`; files it writes outside those trees, or deletes, are never applied (flagged as notes in the preview);
 4. **Human confirmation + conflict recheck** — a per-file diff preview precedes apply, and apply re-verifies the real library is unchanged, refusing with 409 otherwise. The raw layer is immutable — a new version of the same source becomes a new coexisting raw file, never an overwrite.
+
+Codex uses the workspace-write sandbox for command writes to staging, disables command network access and web search, and does not grant extra temporary-directory writes. It does not use the Claude per-tool allowlist. Preview/apply checks still run; manual cancellation or server shutdown terminates the CLI process group before cleaning staging.
 
 Ingest jobs also live in memory only; one at a time, previewing jobs auto-discard after 30 idle minutes. Uploads and source URLs are sent to the configured model provider; uploaded files are written to raw by the server first, so the model never re-transcribes the body.
 

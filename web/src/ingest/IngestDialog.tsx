@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLocale } from "../i18n/useLocale";
 import { errorMessage, ingestProgressMessage } from "../presentation";
 import { readSSE } from "../sse";
+import type { AppliedChange } from "../catalog-model";
 type IngestChange = {
   path: string;
   change: "added" | "modified";
@@ -24,11 +25,17 @@ type Stage = "form" | "running" | "preview" | "done" | "error";
 export default function IngestDialog({
   wikiId,
   maxUploadMb,
+  urlSupported = true,
   onClose,
+  onApplied,
+  onViewUpdates,
 }: {
   wikiId: string;
   maxUploadMb: number;
+  urlSupported?: boolean;
   onClose: () => void;
+  onApplied?: (changes: AppliedChange[]) => void;
+  onViewUpdates?: () => void;
 }) {
   const { locale, t } = useLocale();
   const [stage, setStage] = useState<Stage>("form");
@@ -44,6 +51,9 @@ export default function IngestDialog({
   const [openDiff, setOpenDiff] = useState<Record<string, boolean>>({});
   const [applying, setApplying] = useState(false);
   const [endNote, setEndNote] = useState("");
+  const [appliedChanges, setAppliedChanges] = useState<AppliedChange[] | null>(
+    null,
+  );
   const jobId = useRef<string>();
   const fileInput = useRef<HTMLInputElement>(null);
   const eventsAbort = useRef<AbortController>();
@@ -145,6 +155,11 @@ export default function IngestDialog({
       if (!response.ok) throw data;
       setEndNote(t.ingest.applied);
       setStage("done");
+      const applied = (preview?.changes || [])
+        .filter((change) => data.applied.includes(change.path))
+        .map(({ path, change }) => ({ path, change }));
+      setAppliedChanges(applied);
+      onApplied?.(applied);
     } catch (e) {
       setError(errorMessage(e, locale));
     } finally {
@@ -185,9 +200,12 @@ export default function IngestDialog({
               type="url"
               value={url}
               placeholder={t.ingest.urlPlaceholder}
-              disabled={!!file}
+              disabled={!!file || !urlSupported}
               onChange={(e) => setUrl(e.target.value)}
             />
+            {!urlSupported && (
+              <span className="ingest-hint">{t.ingest.fileOnly}</span>
+            )}
             <label>{t.ingest.fileLabel}</label>
             <input
               ref={fileInput}
@@ -346,10 +364,24 @@ export default function IngestDialog({
                 {error}
               </p>
             )}
+            {stage === "done" && appliedChanges && (
+              <p className="ingest-update-count">
+                {t.ingest.updateCount(
+                  appliedChanges.filter((change) => change.change === "added")
+                    .length,
+                  appliedChanges.filter(
+                    (change) => change.change === "modified",
+                  ).length,
+                )}
+              </p>
+            )}
             <div className="ingest-actions">
-              <button className="primary" onClick={onClose}>
-                {t.ingest.close}
-              </button>
+              {stage === "done" && appliedChanges && onViewUpdates && (
+                <button className="primary" onClick={onViewUpdates}>
+                  {t.ingest.viewUpdates}
+                </button>
+              )}
+              <button onClick={onClose}>{t.ingest.close}</button>
             </div>
           </div>
         )}

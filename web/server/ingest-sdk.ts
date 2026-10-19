@@ -22,7 +22,26 @@ export type IngestAgentQuery = (input: {
   maxTurns: number;
   abortController: AbortController;
   fetchHost?: string;
+  onStderr?: (data: string) => void;
 }) => AsyncIterable<IngestAgentMessage>;
+export function ingestDiagnostic(error: unknown, apiKey: string): string {
+  const describe = (value: unknown, depth = 0): string => {
+    if (!(value instanceof Error)) return String(value);
+    const detail = value.stack || `${value.name}: ${value.message}`;
+    return value.cause && depth < 3
+      ? `${detail}\nCaused by: ${describe(value.cause, depth + 1)}`
+      : detail;
+  };
+  let text = describe(error);
+  if (apiKey) text = text.split(apiKey).join("[REDACTED]");
+  return text
+    .replace(/(Bearer\s+)\S+/gi, "$1[REDACTED]")
+    .replace(
+      /((?:api[_-]?key|authorization)["']?\s*[:=]\s*["']?)[^\s"',}]+/gi,
+      "$1[REDACTED]",
+    )
+    .slice(-12000);
+}
 export async function loadIngestSkill(dir = ingestSkillDir) {
   const read = async (file: string) =>
     (await readFile(path.join(dir, file), "utf8"))
@@ -82,10 +101,9 @@ export function buildTaskPrompt(i: {
   );
   return lines.join("\n");
 }
-// Runtime fence on top of allowedTools: everything lands inside the staging
-// copy, Bash is digest-only with no chaining, WebFetch stays on the source
-// host. Only read-only tools are pre-approved — everything else must pass
-// through here, because an allowedTools prefix rule would bypass this check.
+// Runtime permission fence: writes stay inside the staging copy, Bash is
+// digest-only with no chaining, and WebFetch stays on the source host.
+// Do not pre-approve tools via allowedTools: those rules bypass canUseTool.
 export const fence = (
   toolName: string,
   toolInput: Record<string, unknown>,
@@ -135,9 +153,6 @@ export const fence = (
   return { behavior: "allow" };
 };
 export const claudeAgentQuery: IngestAgentQuery = async function* (input) {
-  // Read-only tools only: prefix rules like Bash(shasum:*) would approve
-  // chained commands without ever reaching the canUseTool fence.
-  const allowedTools = ["Read", "Glob", "Grep"];
   const messages = query({
     prompt: input.taskPrompt,
     options: {
@@ -149,13 +164,13 @@ export const claudeAgentQuery: IngestAgentQuery = async function* (input) {
         preset: "claude_code",
         append: input.systemAppend,
       },
-      allowedTools,
       permissionMode: "default",
       canUseTool: async (toolName, toolInput) =>
         fence(toolName, toolInput, input.cwd, input.fetchHost),
       settingSources: [],
       includePartialMessages: false,
       abortController: input.abortController,
+      stderr: input.onStderr,
       // env replaces the child's environment entirely — spread process.env.
       env: {
         ...process.env,

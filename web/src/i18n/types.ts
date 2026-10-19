@@ -8,8 +8,6 @@ export interface Copy {
   header: { subtitle: string; newChat: string };
   language: { switch: string };
   welcome: {
-    eyebrow: string;
-    titleLines: [string, string];
     lead: string;
     suggestions: string[];
   };
@@ -46,8 +44,44 @@ export interface Copy {
     continueReading: string;
     empty: string;
   };
+  catalog: {
+    title: string;
+    close: string;
+    filter: string;
+    refresh: string;
+    loading: string;
+    failed: string;
+    retry: string;
+    empty: string;
+    recent: string;
+    raw: string;
+    system: string;
+    types: Record<
+      | "Overview"
+      | "Entity"
+      | "Rule"
+      | "Workflow"
+      | "StateMachine"
+      | "Event"
+      | "Other",
+      string
+    >;
+  };
+  views: {
+    knowledge: string;
+    breadcrumb: string;
+    document: string;
+  };
+  library: {
+    openCatalogHint: string;
+    selectDocument: string;
+    ask: string;
+    closeAsk: string;
+    fullScope: string;
+  };
   fatal: { connect: string };
   ingest: {
+    fileOnly: string;
     openButton: string;
     dialogLabel: string;
     intro: string;
@@ -76,6 +110,8 @@ export interface Copy {
     applying: string;
     discard: string;
     applied: string;
+    viewUpdates: string;
+    updateCount: (added: number, modified: number) => string;
     discarded: string;
     emptyChanges: string;
   };

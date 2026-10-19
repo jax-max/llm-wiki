@@ -5,7 +5,6 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { JSDOM } from "jsdom";
 import React, { act } from "react";
-import { createRoot } from "react-dom/client";
 import { STORAGE_KEY } from "../src/i18n/index.js";
 const dom = new JSDOM('<!doctype html><div id="root"></div>', {
   url: "http://127.0.0.1:3002",
@@ -17,6 +16,7 @@ Object.assign(globalThis, {
   IS_REACT_ACT_ENVIRONMENT: true,
 });
 dom.window.HTMLElement.prototype.scrollIntoView = () => {};
+const { createRoot } = await import("react-dom/client");
 const { default: App } = await import("../src/App.js");
 const flush = () => new Promise((r) => setTimeout(r, 0));
 const frame = (event: string, data: unknown) =>
@@ -33,6 +33,7 @@ test("chat UI streams, stops, retries, follows citations and resets conversation
       url,
       body: init?.body ? JSON.parse(String(init.body)) : undefined,
     });
+    if (url.startsWith("/api/catalog")) return Response.json({ pages: [] });
     if (url === "/api/config")
       return Response.json({
         wikiId: "default",
@@ -112,6 +113,7 @@ test("chat UI streams, stops, retries, follows citations and resets conversation
       root.render(React.createElement(App));
       await flush();
     });
+    await click(button("问知识库"));
     assert.match(document.body.textContent!, /Demo wiki/);
     assert.match(document.body.textContent!, /知识库问答/);
     assert.doesNotMatch(document.body.textContent!, /fixture|只读/);
@@ -140,32 +142,42 @@ test("chat UI streams, stops, retries, follows citations and resets conversation
     );
     assert.equal(document.querySelectorAll(".question").length, 1);
     await click(document.querySelector(".markdown a"));
-    assert.match(document.querySelector("aside")!.textContent!, /活动准入/);
+    assert.match(
+      document.querySelector(".knowledge-content")!.textContent!,
+      /活动准入/,
+    );
     await click(
-      [...document.querySelectorAll("aside a")].find(
+      [...document.querySelectorAll(".knowledge-content a")].find(
         (e) => e.textContent === "原始依据",
       ),
     );
-    assert.match(document.querySelector("aside")!.textContent!, /已验证的原文/);
-    await click(button("返回"));
-    assert.match(document.querySelector("aside")!.textContent!, /活动准入/);
+    assert.match(
+      document.querySelector(".knowledge-content")!.textContent!,
+      /已验证的原文/,
+    );
+    await click(button("← 返回"));
+    assert.match(
+      document.querySelector(".knowledge-content")!.textContent!,
+      /活动准入/,
+    );
     assert.doesNotMatch(
-      document.querySelector("aside")!.textContent!,
+      document.querySelector(".knowledge-content")!.textContent!,
       /wiki\/domains/,
     );
     await click(
-      [...document.querySelectorAll("aside a")].find(
+      [...document.querySelectorAll(".knowledge-content a")].find(
         (e) => e.textContent === "断链",
       ),
     );
     assert.match(
-      document.querySelector("aside")!.textContent!,
+      document.querySelector(".knowledge-content")!.textContent!,
       /暂时无法打开这份资料/,
     );
     assert.doesNotMatch(
-      document.querySelector("aside")!.textContent!,
+      document.querySelector(".knowledge-content")!.textContent!,
       /路径越界|internal.md/,
     );
+    await click(button("问知识库"));
     await click(button("新建对话"));
     assert.equal(document.querySelectorAll(".question").length, 0);
     assert.ok(
@@ -207,13 +219,21 @@ test("language toggle switches UI copy, document metadata and persists", async (
       await flush();
     });
     assert.match(document.body.textContent!, /知识库问答/);
-    assert.match(document.body.textContent!, /向知识库提问，或继续追问/);
+    assert.equal(
+      document.querySelector<HTMLTextAreaElement>(".composer textarea")!
+        .placeholder,
+      "向知识库提问，或继续追问…",
+    );
     assert.equal(document.documentElement.lang, "zh-CN");
     assert.equal(document.title, "Wiki 对话");
     await click(button("EN"));
     assert.match(document.body.textContent!, /Knowledge base Q&A/);
     assert.match(document.body.textContent!, /New chat/);
-    assert.match(document.body.textContent!, /Ask the wiki a question/);
+    assert.match(
+      document.querySelector<HTMLTextAreaElement>(".composer textarea")!
+        .placeholder,
+      /Ask the wiki a question/,
+    );
     assert.match(document.body.textContent!, /join the lottery/);
     assert.doesNotMatch(document.body.textContent!, /知识库问答/);
     assert.equal(document.documentElement.lang, "en");

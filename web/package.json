@@ -16,13 +16,13 @@
     "dev": "concurrently -k \"tsx watch server/index.ts\" \"vite\"",
     "build": "tsc --noEmit && vite build && tsc -p tsconfig.server.json",
     "start": "NODE_ENV=production node dist/server/index.js",
-    "test": "node --import tsx --test tests/core.test.ts tests/ingest.test.ts",
+    "test": "node --import tsx --test tests/core.test.ts tests/ingest.test.ts tests/ingest-codex.test.ts",
     "format": "prettier --write \"{src,server,tests,scripts}/**/*.{ts,tsx,css}\" \"*.{json,ts,js,html}\"",
     "format:check": "prettier --check \"{src,server,tests,scripts}/**/*.{ts,tsx,css}\" \"*.{json,ts,js,html}\"",
     "smoke:live": "tsx scripts/smoke-live.ts",
     "preview:fixture": "tsx tests/preview.ts",
     "test:web": "node --import tsx --test tests/http.test.ts tests/protocol.test.ts",
-    "test:client": "node --import tsx --test tests/markdown.test.ts tests/presentation.test.ts tests/ui.test.ts"
+    "test:client": "node --import tsx --test tests/markdown.test.ts tests/presentation.test.ts tests/ui.test.ts tests/catalog-ui.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "0.3.300",

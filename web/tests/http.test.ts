@@ -64,6 +64,16 @@ test("HTTP config, document, host and origin boundaries, ordered SSE and followu
       !(await (await s.request("/api/config")).text()).includes("test-secret"),
     );
     assert.equal(await s.badHost(), 403);
+    const catalog = await s.request(`/api/catalog?wikiId=${config.wikiId}`);
+    assert.equal(catalog.status, 200);
+    assert.match(catalog.headers.get("cache-control") || "", /no-store/);
+    const listing = await catalog.json();
+    assert.ok(
+      listing.pages.some((p: { path: string }) => p.path === "wiki/index.md"),
+    );
+    assert.ok(listing.pages.every((p: object) => !("text" in p)));
+    assert.ok(!JSON.stringify(listing).includes(config.root));
+    assert.equal((await s.request("/api/catalog?wikiId=wrong")).status, 400);
     assert.equal(
       (
         await s.request("/healthz", {

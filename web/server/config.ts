@@ -20,6 +20,8 @@ export type Config = {
   baseUrl: string;
   model: string;
   ingestModel: string;
+  ingestEngine: "claude" | "codex";
+  codexIngestModel?: string;
   apiKey: string;
   port: number;
   webPort: number;
@@ -28,7 +30,6 @@ export type Config = {
   ingestEnabled: boolean;
   ingestAvailable: boolean;
   ingestMaxUploadMb: number;
-  ingestTimeoutMs: number;
   ingestMaxTurns: number;
   ingestValidate: "auto" | "on" | "off";
 };
@@ -102,12 +103,14 @@ export async function loadConfig(
     throw new Error(`${key} 必须是布尔值（true/false）`);
   };
   // 摄入 Agent 用更强的模型，查询可继续用轻量模型；未配置时沿用 LLM_MODEL。
+  const ingestEngine = env.INGEST_ENGINE?.trim() || "claude";
+  if (ingestEngine !== "claude" && ingestEngine !== "codex")
+    throw new Error("INGEST_ENGINE 必须是 claude 或 codex");
   const ingestModel = env.INGEST_MODEL?.trim() || model;
   const ingestValidate = env.INGEST_VALIDATE?.trim() || "auto";
   if (!["auto", "on", "off"].includes(ingestValidate))
     throw new Error("INGEST_VALIDATE 必须是 auto、on 或 off");
-  // 摄入依赖 Claude Agent SDK 的 Anthropic 兼容通道，openai-completions
-  // 协议下不可用；配置阶段降级为不可用而不是启动报错。
+  // Codex uses its own ChatGPT login, independently of the query protocol.
   const ingestEnabled = bool("INGEST_ENABLED", true);
   return {
     root,
@@ -117,14 +120,17 @@ export async function loadConfig(
     baseUrl,
     model,
     ingestModel,
+    ingestEngine,
+    codexIngestModel: env.CODEX_INGEST_MODEL?.trim() || undefined,
     apiKey: required("LLM_API_KEY"),
     ...loadPorts({ ...env, ...fileEnv }),
     timeout,
     maxCalls,
     ingestEnabled,
-    ingestAvailable: ingestEnabled && api === "anthropic-messages",
+    ingestAvailable:
+      ingestEnabled &&
+      (ingestEngine === "codex" || api === "anthropic-messages"),
     ingestMaxUploadMb: integer("INGEST_MAX_UPLOAD_MB", 2, 16),
-    ingestTimeoutMs: integer("INGEST_TIMEOUT_MS", 1_200_000, 3_600_000),
     ingestMaxTurns: integer("INGEST_MAX_TURNS", 80, 500),
     ingestValidate: ingestValidate as Config["ingestValidate"],
   };
@@ -134,5 +140,9 @@ export const publicConfig = (c: Config) => ({
   name: c.name,
   model: c.model,
   api: c.api,
-  ingest: { available: c.ingestAvailable, maxUploadMb: c.ingestMaxUploadMb },
+  ingest: {
+    available: c.ingestAvailable,
+    maxUploadMb: c.ingestMaxUploadMb,
+    urlSupported: c.ingestEngine !== "codex",
+  },
 });

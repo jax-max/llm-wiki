@@ -5,7 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import http from "node:http";
 import { diffLines, formatDiff } from "../server/ingest-diff.js";
-import { ingestEndpoint } from "../server/ingest-sdk.js";
+import { ingestEndpoint, ingestDiagnostic } from "../server/ingest-sdk.js";
 import { loadConfig, publicConfig } from "../server/config.js";
 import {
   createStaging,
@@ -21,6 +21,69 @@ const baseEnv = {
   LLM_MODEL: "test-model",
   LLM_BASE_URL: "http://127.0.0.1:9",
 };
+test("ingest diagnostics retain causes, redact credentials and bound output", () => {
+  const cause = new Error("provider rejected api_key=other-secret");
+  const detail = ingestDiagnostic(
+    new Error("SDK exited test-secret Authorization: Bearer token-value", {
+      cause,
+    }),
+    "test-secret",
+  );
+  assert.match(detail, /SDK exited/);
+  assert.match(detail, /Caused by:.*provider rejected/);
+  for (const secret of ["test-secret", "other-secret", "token-value"])
+    assert.ok(!detail.includes(secret));
+  assert.ok(ingestDiagnostic("x".repeat(20000), "").length <= 12000);
+});
+test("ingest failures log job context and SDK stderr before generic SSE error", async (t) => {
+  const { IngestStore } = await import("../server/ingest.js");
+  const logs: string[] = [];
+  t.mock.method(console, "info", () => {});
+  t.mock.method(console, "error", (line: string) => logs.push(line));
+  const root = await makeWiki();
+  const c = {
+    ...(await loadConfig(baseEnv)),
+    root,
+    ingestValidate: "off" as const,
+  };
+  const agent: import("../server/ingest-sdk.js").IngestAgentQuery =
+    async function* (input) {
+      input.onStderr?.("CLI: authentication failed test-");
+      input.onStderr?.("secret");
+      throw new Error("CLI exited", { cause: new Error("provider refused") });
+    };
+  const store = new IngestStore(c, agent);
+  try {
+    const job = await store.start({
+      kind: "url",
+      url: "https://example.com/new",
+    });
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error("missing error event")),
+        5000,
+      );
+      store.subscribe(job.id, (event) => {
+        if (event === "error") {
+          clearTimeout(timer);
+          resolve();
+        }
+      });
+    });
+    const log = JSON.parse(logs[0]);
+    assert.equal(log.event, "ingest_failed");
+    assert.equal(log.jobId, job.id);
+    assert.equal(log.phase, "agent");
+    assert.match(log.detail, /provider refused/);
+    assert.match(log.stderr, /authentication failed/);
+    assert.ok(!logs[0].includes("test-secret"));
+    assert.equal(job.error?.code, "ingest");
+    assert.ok(!job.error?.message.includes("provider refused"));
+  } finally {
+    store.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
 async function makeWiki() {
   const root = await mkdtemp(path.join(os.tmpdir(), "wiki-ingest-test-"));
   await mkdir(path.join(root, "wiki/domains/d"), { recursive: true });
@@ -106,7 +169,9 @@ test("ingest configuration defaults, validation and availability", async () => {
   assert.equal(c.ingestEnabled, true);
   assert.equal(c.ingestAvailable, true);
   assert.equal(c.ingestMaxUploadMb, 2);
-  assert.equal(c.ingestTimeoutMs, 1_200_000);
+  assert.ok(!("ingestTimeoutMs" in c));
+  // Legacy timeout values no longer configure or limit ingest jobs.
+  await loadConfig({ ...baseEnv, INGEST_TIMEOUT_MS: "0" });
   assert.equal(c.ingestMaxTurns, 80);
   assert.equal(c.ingestValidate, "auto");
   // INGEST_MODEL 未配置时沿用 LLM_MODEL，配置后仅作用于摄入端点。
@@ -137,7 +202,59 @@ test("ingest configuration defaults, validation and availability", async () => {
     loadConfig({ ...baseEnv, INGEST_ENABLED: "maybe" }),
     /INGEST_ENABLED/,
   );
-  assert.deepEqual(publicConfig(c).ingest, { available: true, maxUploadMb: 2 });
+  assert.deepEqual(publicConfig(c).ingest, {
+    available: true,
+    maxUploadMb: 2,
+    urlSupported: true,
+  });
+});
+test("ingest has no overall timeout and still supports manual cancellation", async (t) => {
+  const { IngestStore } = await import("../server/ingest.js");
+  t.mock.method(console, "info", () => {});
+  t.mock.method(console, "error", () => {});
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const root = await makeWiki();
+  let ready!: () => void;
+  const started = new Promise<void>((resolve) => {
+    ready = resolve;
+  });
+  let signal: AbortSignal | undefined;
+  const agent: import("../server/ingest-sdk.js").IngestAgentQuery =
+    async function* (input) {
+      signal = input.abortController.signal;
+      ready();
+      await new Promise<void>((resolve) =>
+        signal!.addEventListener("abort", () => resolve(), { once: true }),
+      );
+      input.abortController.signal.throwIfAborted();
+    };
+  const c = {
+    ...(await loadConfig({ ...baseEnv, INGEST_TIMEOUT_MS: "1" })),
+    root,
+  };
+  const store = new IngestStore(c, agent);
+  try {
+    const job = await store.start({
+      kind: "file",
+      filename: "new.md",
+      text: "new content",
+    });
+    await started;
+    t.mock.timers.tick(24 * 60 * 60_000);
+    assert.equal(job.status, "running");
+    assert.equal(signal?.aborted, false);
+    const finished = new Promise<void>((resolve) => {
+      store.subscribe(job.id, (event) => {
+        if (event === "error") resolve();
+      });
+    });
+    assert.equal(store.cancel(job.id), true);
+    await finished;
+    assert.equal(job.status, "cancelled");
+  } finally {
+    store.close();
+    await rm(root, { recursive: true, force: true });
+  }
 });
 test("staging copy matches the source tree and cleanup removes it", async () => {
   const root = await makeWiki();

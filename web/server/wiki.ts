@@ -35,6 +35,43 @@ export function documentPath(input: string, from = ""): string {
 }
 export class Wiki {
   constructor(public root: string) {}
+  async catalog() {
+    const pages: { path: string; title: string; type?: string }[] = [];
+    const walk = async (directory: string) => {
+      for (const entry of await readdir(path.join(this.root, directory), {
+        withFileTypes: true,
+      })) {
+        const relative = directory ? `${directory}/${entry.name}` : entry.name;
+        if (entry.isSymbolicLink()) continue;
+        if (entry.isDirectory()) {
+          if (directory || entry.name === "wiki" || entry.name === "raw")
+            await walk(relative);
+        } else if (
+          entry.isFile() &&
+          /^(wiki|raw)\/.+\.(md|txt)$/i.test(relative)
+        ) {
+          try {
+            const doc = await this.read(relative);
+            pages.push({
+              path: doc.path,
+              title: doc.title,
+              type: doc.text.match(/^>\s*Type:\s*(.+)$/m)?.[1]?.trim(),
+            });
+          } catch (error) {
+            if (
+              !(error instanceof QueryError) &&
+              !["ENOENT", "EACCES"].includes(
+                (error as NodeJS.ErrnoException).code || "",
+              )
+            )
+              throw error;
+          }
+        }
+      }
+    };
+    await walk("");
+    return { pages: pages.sort((a, b) => a.path.localeCompare(b.path, "en")) };
+  }
   async resolve(input: string) {
     const relative = documentPath(input);
     const root = await realpath(this.root);

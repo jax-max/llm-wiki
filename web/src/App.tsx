@@ -1,26 +1,27 @@
-import React, { Fragment, useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useLocale } from "./i18n/useLocale";
 import IngestDialog from "./ingest/IngestDialog";
+import Catalog from "./Catalog";
+import {
+  pageDomain,
+  pageType,
+  type CatalogPage,
+  type AppliedChange,
+} from "./catalog-model";
+import { useDocumentReader } from "./useDocumentReader";
 import { renderMarkdown, sourceLink } from "./markdown";
-import { errorMessage, progressMessage, sourceTitle } from "./presentation";
+import { errorMessage, progressMessage } from "./presentation";
 import { readSSE } from "./sse";
 type Config = {
   wikiId: string;
   name: string;
-  ingest?: { available: boolean; maxUploadMb: number };
+  ingest?: { available: boolean; maxUploadMb: number; urlSupported?: boolean };
 };
 type Turn = {
   question: string;
   answer: string;
   status: "running" | "done" | "error" | "stopped";
   error?: string;
-};
-type Doc = {
-  path: string;
-  title: string;
-  text: string;
-  nextOffset: number | null;
-  total: number;
 };
 export default function App() {
   const { locale, setLocale, t } = useLocale();
@@ -30,15 +31,36 @@ export default function App() {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState("");
-  const [sources, setSources] = useState<Doc[]>([]);
-  const [sourceError, setSourceError] = useState("");
-  const [sourceBusy, setSourceBusy] = useState(false);
-  const [panel, setPanel] = useState(false);
+  const [askOpen, setAskOpen] = useState(false);
+  const knowledge = useDocumentReader(config?.wikiId, locale);
+  const knowledgeScroll = useRef<HTMLElement>(null);
   const [ingestOpen, setIngestOpen] = useState(false);
+  const [catalogOpen, setCatalogOpen] = useState(
+    () => window.innerWidth >= 1280,
+  );
+  const [catalogPages, setCatalogPages] = useState<CatalogPage[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogFailed, setCatalogFailed] = useState(false);
+  const [updates, setUpdates] = useState<AppliedChange[]>([]);
+  const [revealUpdates, setRevealUpdates] = useState(0);
+  const catalogRequest = useRef(0);
   const session = useRef<string>();
   const controller = useRef<AbortController>();
   const end = useRef<HTMLDivElement>(null);
-  const sourceRequest = useRef(0);
+  const chatInput = useRef<HTMLTextAreaElement>(null);
+  const askToggle = useRef<HTMLButtonElement>(null);
+  const catalogToggle = useRef<HTMLButtonElement>(null);
+  const wasAskOpen = useRef(false);
+  useEffect(() => {
+    if (askOpen) chatInput.current?.focus({ preventScroll: true });
+    else if (wasAskOpen.current)
+      askToggle.current?.focus({ preventScroll: true });
+    wasAskOpen.current = askOpen;
+  }, [askOpen]);
+  function closeCatalog() {
+    setCatalogOpen(false);
+    catalogToggle.current?.focus({ preventScroll: true });
+  }
   useEffect(() => {
     fetch("/api/config")
       .then((r) => {
@@ -50,47 +72,61 @@ export default function App() {
     return () => controller.current?.abort();
   }, []);
   useEffect(() => {
-    end.current?.scrollIntoView({ behavior: "smooth" });
+    if (askOpen) end.current?.scrollIntoView({ behavior: "smooth" });
   }, [turns, progress]);
-  async function openSource(p: string, more = false) {
+  useEffect(() => {
+    if (knowledgeScroll.current) knowledgeScroll.current.scrollTop = 0;
+    if (window.innerWidth < 1280)
+      knowledgeScroll.current?.focus({ preventScroll: true });
+  }, [knowledge.doc?.path]);
+  function viewUpdates() {
+    setIngestOpen(false);
+    setCatalogOpen(true);
+    if (window.innerWidth < 1280) setAskOpen(false);
+    setRevealUpdates((value) => value + 1);
+  }
+  async function refreshCatalog() {
     if (!config) return;
-    const token = ++sourceRequest.current;
-    setPanel(true);
-    setSourceBusy(true);
-    setSourceError("");
+    const token = ++catalogRequest.current;
+    setCatalogLoading(true);
+    setCatalogFailed(false);
     try {
-      const current = sources.at(-1);
-      const r = await fetch(
-        "/api/document?" +
-          new URLSearchParams({
-            wikiId: config.wikiId,
-            path: p,
-            ...(more ? { offset: String(current?.nextOffset || 0) } : {}),
-          }),
+      const response = await fetch(
+        "/api/catalog?" + new URLSearchParams({ wikiId: config.wikiId }),
       );
-      const data = await r.json();
-      if (!r.ok) throw new Error(data.error);
-      if (token !== sourceRequest.current) return;
-      setSources((old) =>
-        more
-          ? old.map((d, i) =>
-              i === old.length - 1 ? { ...data, text: d.text + data.text } : d,
-            )
-          : [...old, data],
-      );
-    } catch (e) {
-      if (token === sourceRequest.current)
-        setSourceError(errorMessage(e, locale, "source"));
+      if (!response.ok) throw new Error("catalog");
+      const data = await response.json();
+      if (!Array.isArray(data.pages)) throw new Error("catalog");
+      if (token === catalogRequest.current) setCatalogPages(data.pages);
+    } catch {
+      if (token === catalogRequest.current) setCatalogFailed(true);
     } finally {
-      if (token === sourceRequest.current) setSourceBusy(false);
+      if (token === catalogRequest.current) setCatalogLoading(false);
     }
   }
-  function showSourceError(error: unknown) {
-    setPanel(true);
-    setSourceError(errorMessage(error, locale, "source"));
+  useEffect(() => {
+    void refreshCatalog();
+    return () => {
+      ++catalogRequest.current;
+    };
+  }, [config]);
+  function applied(changes: AppliedChange[]) {
+    setUpdates(changes);
+    void refreshCatalog();
+    const current = knowledge.doc?.path;
+    if (current && changes.some((change) => change.path === current))
+      void knowledge.open(current, false, true);
+  }
+  function openDocument(path: string) {
+    if (window.innerWidth < 1280) {
+      setCatalogOpen(false);
+      setAskOpen(false);
+    }
+    return knowledge.open(path);
   }
   async function send(question: string, retry = false) {
     if (!config || busy || !question.trim()) return;
+    setAskOpen(true);
     const abort = new AbortController();
     controller.current = abort;
     setBusy(true);
@@ -152,12 +188,29 @@ export default function App() {
     session.current = undefined;
     setTurns([]);
     setInput("");
-    setPanel(false);
-    setSources([]);
-    setSourceError("");
-    ++sourceRequest.current;
   }
-  const doc = sources.at(-1);
+  const knowledgePage = catalogPages.find(
+    (page) => page.path === knowledge.doc?.path,
+  );
+  const domain = knowledgePage && pageDomain(knowledgePage);
+  const domainTitle =
+    domain &&
+    (catalogPages.find(
+      (page) => page.path === `wiki/domains/${domain}/overview.md`,
+    )?.title ||
+      domain);
+  const breadcrumb = knowledge.doc
+    ? [
+        domainTitle ||
+          (knowledge.doc.path.startsWith("raw/")
+            ? t.catalog.raw
+            : t.catalog.system),
+        ...(domain && knowledgePage
+          ? [t.catalog.types[pageType(knowledgePage)]]
+          : []),
+        knowledge.doc.title,
+      ].join(" / ")
+    : t.views.knowledge;
   const last = turns.at(-1);
   const ingest = config?.ingest;
   return (
@@ -171,6 +224,20 @@ export default function App() {
           </div>
         </div>
         <div className="header-actions">
+          {ingest?.available && (
+            <button onClick={() => setIngestOpen(true)}>
+              {t.ingest.openButton}
+            </button>
+          )}
+          <button
+            ref={askToggle}
+            className="ask-toggle"
+            aria-expanded={askOpen}
+            aria-controls="knowledge-chat"
+            onClick={() => setAskOpen((old) => !old)}
+          >
+            {t.library.ask}
+          </button>
           <button
             type="button"
             className="lang-toggle"
@@ -180,198 +247,269 @@ export default function App() {
           >
             {locale === "zh" ? "EN" : "中"}
           </button>
-          {config?.ingest?.available && (
-            <button onClick={() => setIngestOpen(true)}>
-              {t.ingest.openButton}
-            </button>
-          )}
-          <button onClick={() => void reset()} disabled={busy}>
-            {t.header.newChat}
-          </button>
         </div>
       </header>
-      <div className="workspace">
-        <main>
-          <div className="conversation" aria-live="polite">
+      <div className="workspace library-workspace">
+        {catalogOpen && (
+          <button
+            className="catalog-backdrop"
+            aria-label={t.catalog.close}
+            onClick={closeCatalog}
+          />
+        )}
+        <aside
+          id="knowledge-catalog"
+          className="catalog-panel"
+          aria-label={t.catalog.title}
+          hidden={!catalogOpen}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") closeCatalog();
+          }}
+        >
+          <Catalog
+            t={t}
+            locale={locale}
+            pages={catalogPages}
+            updates={updates}
+            revealUpdates={revealUpdates}
+            activePath={knowledge.doc?.path}
+            loading={catalogLoading}
+            failed={catalogFailed}
+            onRefresh={() => void refreshCatalog()}
+            onClose={closeCatalog}
+            onOpen={(path) => void openDocument(path)}
+          />
+        </aside>
+        <main className="knowledge-main">
+          <div className="knowledge-toolbar">
+            <button
+              ref={catalogToggle}
+              aria-expanded={catalogOpen}
+              aria-controls="knowledge-catalog"
+              onClick={() => setCatalogOpen((old) => !old)}
+            >
+              {t.catalog.title}
+            </button>
+            <nav
+              aria-label={t.views.breadcrumb}
+              className="knowledge-breadcrumb"
+            >
+              {breadcrumb}
+            </nav>
+            {knowledge.documents.length > 1 && (
+              <button disabled={knowledge.busy} onClick={knowledge.back}>
+                {t.source.back}
+              </button>
+            )}
+          </div>
+          <article
+            className="knowledge-content"
+            ref={knowledgeScroll}
+            tabIndex={-1}
+            aria-label={t.views.document}
+            aria-busy={knowledge.busy}
+          >
             {fatal && (
               <p role="alert" className="error">
                 {t.fatal.connect}
               </p>
             )}
-            {!turns.length && (
-              <section className="welcome">
-                <div className="eyebrow">{t.welcome.eyebrow}</div>
-                <h1>
-                  {t.welcome.titleLines.map((line, i) => (
-                    <Fragment key={i}>
-                      {i > 0 && <br />}
-                      {line}
-                    </Fragment>
-                  ))}
-                </h1>
-                <p>{t.welcome.lead}</p>
-                <div className="suggestions">
-                  {t.welcome.suggestions.map((q) => (
+            <div>
+              {knowledge.error && (
+                <p role="alert" className="error">
+                  {knowledge.error}
+                </p>
+              )}
+              {knowledge.busy && <p role="status">{t.progress.opening}</p>}
+              {knowledge.doc && (
+                <>
+                  <Markdown
+                    text={knowledge.doc.text}
+                    from={knowledge.doc.path}
+                    onOpenSource={(path) => void openDocument(path)}
+                    onSourceError={knowledge.showError}
+                  />
+                  {knowledge.doc.nextOffset !== null && (
                     <button
-                      key={q}
-                      disabled={!config}
-                      onClick={() => void send(q)}
+                      disabled={knowledge.busy}
+                      onClick={() =>
+                        void knowledge.open(knowledge.doc!.path, true)
+                      }
                     >
-                      {q}
-                      <span>↗</span>
-                    </button>
-                  ))}
-                </div>
-              </section>
-            )}
-            {turns.map((turn, i) => (
-              <section className="turn" key={i}>
-                <div className="question">{turn.question}</div>
-                <div className="answer-label">
-                  WIKI{" "}
-                  <span>
-                    {turn.status === "running"
-                      ? t.turn.running
-                      : turn.status === "done"
-                        ? t.turn.done
-                        : t.turn.incomplete}
-                  </span>
-                </div>
-                <Markdown
-                  text={turn.answer}
-                  onOpenSource={openSource}
-                  onSourceError={showSourceError}
-                />
-                {turn.error && (
-                  <div role="alert" className="error">
-                    {turn.error}
-                  </div>
-                )}
-                {i === turns.length - 1 &&
-                  !busy &&
-                  (turn.status === "error" || turn.status === "stopped") && (
-                    <button
-                      className="retry"
-                      onClick={() => void send(turn.question, true)}
-                    >
-                      {t.turn.retry}
+                      {t.source.continueReading}
                     </button>
                   )}
-              </section>
-            ))}
-            {busy && (
-              <div className="progress" role="status">
-                <span className="pulse" />
-                {progress}
-              </div>
-            )}
-            <div ref={end} />
-          </div>
-          <form
-            className="composer"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void send(input);
-            }}
-          >
-            <textarea
-              aria-label={t.composer.askAria}
-              placeholder={
-                last?.status === "error"
-                  ? t.composer.retryPlaceholder
-                  : t.composer.placeholder
-              }
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (
-                  e.key === "Enter" &&
-                  !e.shiftKey &&
-                  !e.nativeEvent.isComposing
-                ) {
-                  e.preventDefault();
-                  void send(input);
-                }
-              }}
-              rows={2}
-              maxLength={16000}
-            />
-            <div className="composer-footer">
-              <span>{t.composer.disclaimer}</span>
-              {busy ? (
-                <button
-                  type="button"
-                  className="primary"
-                  onClick={() => controller.current?.abort()}
-                >
-                  {t.composer.stop}
-                </button>
-              ) : (
-                <button className="primary" disabled={!config || !input.trim()}>
-                  {t.composer.send}
-                </button>
+                </>
               )}
             </div>
-          </form>
-        </main>
-        {panel && (
-          <aside aria-label={t.source.panelLabel} className="source-panel">
-            <div className="source-toolbar">
-              <button
-                disabled={sources.length < 2 || sourceBusy}
-                onClick={() => {
-                  ++sourceRequest.current;
-                  setSources((old) => old.slice(0, -1));
-                  setSourceError("");
-                }}
-              >
-                {t.source.back}
-              </button>
-              <span>{t.source.panelLabel}</span>
-              <button
-                aria-label={t.source.closeAria}
-                onClick={() => {
-                  ++sourceRequest.current;
-                  setSourceBusy(false);
-                  setPanel(false);
-                }}
-              >
-                ✕
-              </button>
-            </div>
-            {sourceError && (
-              <p role="alert" className="error">
-                {sourceError}
-              </p>
+            {!knowledge.doc && !knowledge.busy && (
+              <section className="knowledge-empty">
+                <p>
+                  {catalogOpen
+                    ? t.library.selectDocument
+                    : t.library.openCatalogHint}
+                </p>
+              </section>
             )}
-            {doc && (
-              <>
-                <h2>{sourceTitle(doc.title) || t.source.fallbackTitle}</h2>
-                <Markdown
-                  text={doc.text}
-                  from={doc.path}
-                  onOpenSource={openSource}
-                  onSourceError={showSourceError}
-                />
-                {doc.nextOffset !== null && (
+          </article>
+        </main>
+        {askOpen && (
+          <button
+            className="chat-backdrop"
+            aria-label={t.library.closeAsk}
+            onClick={() => setAskOpen(false)}
+          />
+        )}
+        <aside
+          id="knowledge-chat"
+          className="chat-panel"
+          aria-label={t.library.ask}
+          hidden={!askOpen}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") setAskOpen(false);
+          }}
+        >
+          <div className="chat-toolbar">
+            <strong>{t.library.ask}</strong>
+            <button onClick={() => void reset()} disabled={busy}>
+              {t.header.newChat}
+            </button>
+            <button
+              aria-label={t.library.closeAsk}
+              onClick={() => setAskOpen(false)}
+            >
+              ✕
+            </button>
+          </div>
+          <p className="chat-scope">{t.library.fullScope}</p>
+          <div className="chat-main">
+            <div className="conversation" aria-live="polite">
+              {fatal && (
+                <p role="alert" className="error">
+                  {t.fatal.connect}
+                </p>
+              )}
+              {!turns.length && (
+                <section className="welcome">
+                  <h2>{t.library.ask}</h2>
+                  <p>{t.welcome.lead}</p>
+                  <div className="suggestions">
+                    {t.welcome.suggestions.map((q) => (
+                      <button
+                        key={q}
+                        disabled={!config}
+                        onClick={() => void send(q)}
+                      >
+                        {q}
+                        <span>↗</span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              )}
+              {turns.map((turn, i) => (
+                <section className="turn" key={i}>
+                  <div className="question">{turn.question}</div>
+                  <div className="answer-label">
+                    WIKI{" "}
+                    <span>
+                      {turn.status === "running"
+                        ? t.turn.running
+                        : turn.status === "done"
+                          ? t.turn.done
+                          : t.turn.incomplete}
+                    </span>
+                  </div>
+                  <Markdown
+                    text={turn.answer}
+                    onOpenSource={openDocument}
+                    onSourceError={knowledge.showError}
+                  />
+                  {turn.error && (
+                    <div role="alert" className="error">
+                      {turn.error}
+                    </div>
+                  )}
+                  {i === turns.length - 1 &&
+                    !busy &&
+                    (turn.status === "error" || turn.status === "stopped") && (
+                      <button
+                        className="retry"
+                        onClick={() => void send(turn.question, true)}
+                      >
+                        {t.turn.retry}
+                      </button>
+                    )}
+                </section>
+              ))}
+              {busy && (
+                <div className="progress" role="status">
+                  <span className="pulse" />
+                  {progress}
+                </div>
+              )}
+              <div ref={end} />
+            </div>
+            <form
+              className="composer"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void send(input);
+              }}
+            >
+              <textarea
+                ref={chatInput}
+                aria-label={t.composer.askAria}
+                placeholder={
+                  last?.status === "error"
+                    ? t.composer.retryPlaceholder
+                    : t.composer.placeholder
+                }
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (
+                    e.key === "Enter" &&
+                    !e.shiftKey &&
+                    !e.nativeEvent.isComposing
+                  ) {
+                    e.preventDefault();
+                    void send(input);
+                  }
+                }}
+                rows={2}
+                maxLength={16000}
+              />
+              <div className="composer-footer">
+                <span>{t.composer.disclaimer}</span>
+                {busy ? (
                   <button
-                    disabled={sourceBusy}
-                    onClick={() => void openSource(doc.path, true)}
+                    type="button"
+                    className="primary"
+                    onClick={() => controller.current?.abort()}
                   >
-                    {t.source.continueReading}
+                    {t.composer.stop}
+                  </button>
+                ) : (
+                  <button
+                    className="primary"
+                    disabled={!config || !input.trim()}
+                  >
+                    {t.composer.send}
                   </button>
                 )}
-              </>
-            )}
-            {sourceBusy && <p role="status">{t.progress.opening}</p>}
-            {!doc && !sourceBusy && !sourceError && <p>{t.source.empty}</p>}
-          </aside>
-        )}
+              </div>
+            </form>
+          </div>
+        </aside>
       </div>
       {ingestOpen && ingest?.available && (
         <IngestDialog
           wikiId={config!.wikiId}
           maxUploadMb={ingest.maxUploadMb}
+          urlSupported={ingest.urlSupported}
+          onApplied={applied}
+          onViewUpdates={viewUpdates}
           onClose={() => setIngestOpen(false)}
         />
       )}

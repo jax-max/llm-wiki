@@ -22,8 +22,10 @@ import {
   classifyIngestError,
   claudeAgentQuery,
   ingestEndpoint,
+  ingestDiagnostic,
   type IngestAgentQuery,
 } from "./ingest-sdk.js";
+import { codexAgentQuery } from "./ingest-codex.js";
 export type IngestStatus =
   | "running"
   | "preview"
@@ -48,6 +50,8 @@ export type IngestJob = {
   lintReport?: string | null;
   summary?: string;
   error?: { code: string; message: string };
+  phase?: string;
+  stderrTail?: string;
 };
 type Listener = (event: string, data: unknown) => void;
 const MAX_JOBS = 20;
@@ -66,7 +70,7 @@ export class IngestStore {
   );
   constructor(
     private c: Config,
-    private agent: IngestAgentQuery = claudeAgentQuery,
+    private agent?: IngestAgentQuery,
   ) {}
   async start(input: IngestInput): Promise<IngestJob> {
     if (!this.c.ingestAvailable)
@@ -74,6 +78,12 @@ export class IngestStore {
         "ingest_disabled",
         "摄入不可用（未启用或当前模型协议不支持）",
         503,
+      );
+    if (this.c.ingestEngine === "codex" && input.kind === "url")
+      throw new QueryError(
+        "unsupported",
+        "当前摄入仅支持上传 .md / .txt 文件",
+        400,
       );
     // Reserve the slot synchronously so concurrent starts cannot both slip
     // past the single-flight check while the pre-check awaits I/O.
@@ -207,7 +217,8 @@ export class IngestStore {
       if (job.status === "running")
         job.controller?.abort(new QueryError("cancelled", "服务停止"));
     for (const job of this.jobs.values())
-      if (job.staging) void cleanupStaging(job.staging);
+      if (job.staging && job.status !== "running")
+        void cleanupStaging(job.staging);
     this.jobs.clear();
     this.buffers.clear();
     this.listeners.clear();
@@ -235,11 +246,28 @@ export class IngestStore {
         : reason instanceof QueryError
           ? reason
           : classifyIngestError(error);
+    console.error(
+      JSON.stringify({
+        event: "ingest_failed",
+        jobId: job.id,
+        phase: job.phase,
+        engine: this.c.ingestEngine,
+        model:
+          this.c.ingestEngine === "codex"
+            ? this.c.codexIngestModel || "CLI default"
+            : this.c.ingestModel,
+        elapsedMs: Date.now() - job.createdAt,
+        code: e.code,
+        detail: ingestDiagnostic(error, this.c.apiKey),
+        stderr: ingestDiagnostic(job.stderrTail || "", this.c.apiKey),
+      }),
+    );
     job.status = e.code === "cancelled" ? "cancelled" : "error";
     job.error = { code: e.code, message: e.message };
     job.lastUsed = Date.now();
     if (job.staging) void cleanupStaging(job.staging);
     job.staging = undefined;
+    job.stderrTail = undefined;
     this.emit(job, "error", { code: e.code, message: e.message });
   }
   private async run(
@@ -249,106 +277,119 @@ export class IngestStore {
   ) {
     const controller = new AbortController();
     job.controller = controller;
-    const timer = setTimeout(
-      () =>
-        controller.abort(
-          new QueryError("timeout", "摄入超时，请重试或调整超时配置"),
-        ),
-      this.c.ingestTimeoutMs,
+    job.phase = "staging";
+    console.info(
+      JSON.stringify({
+        event: "ingest_started",
+        jobId: job.id,
+        kind: job.kind,
+        engine: this.c.ingestEngine,
+        model:
+          this.c.ingestEngine === "codex"
+            ? this.c.codexIngestModel || "CLI default"
+            : this.c.ingestModel,
+      }),
     );
-    try {
-      job.staging = await createStaging(this.c.root);
-      job.baseline = await digestTree(this.c.root);
-      const today = new Date().toISOString().slice(0, 10);
-      let fetchHost: string | undefined;
-      let task: Parameters<typeof buildTaskPrompt>[0];
-      if (input.kind === "file") {
-        const rawPath = await rawPathForUpload(
-          input.filename,
-          today,
-          async (candidate) => {
-            try {
-              await access(path.join(job.staging!, candidate), constants.F_OK);
-              return true;
-            } catch {
-              return false;
-            }
-          },
-        );
-        const title = input.filename.replace(/\.(md|txt)$/i, "");
-        const content = `# ${title}\n\n> Source: uploaded file "${input.filename}"\n> Collected: ${today}\n> Published: Unknown\n\n${input.text}\n`;
-        await mkdir(path.dirname(path.join(job.staging, rawPath)), {
-          recursive: true,
-        });
-        await writeFile(path.join(job.staging, rawPath), content);
-        task = {
-          kind: "file",
-          source: input.filename,
-          today,
-          rawPath,
-          sha256: sha256(content),
-        };
-      } else {
-        fetchHost = new URL(input.url).hostname;
-        task = { kind: "url", source: input.url, today, priorRaw };
-      }
-      const { skill, templates } = await loadIngestSkill();
-      const summary = await this.drive(job, {
-        taskPrompt: buildTaskPrompt(task),
-        systemAppend: `${skill}\n\n# File templates\n${templates}`,
-        fetchHost,
-        controller,
+    job.staging = await createStaging(this.c.root);
+    job.baseline = await digestTree(this.c.root);
+    const today = new Date().toISOString().slice(0, 10);
+    let fetchHost: string | undefined;
+    let task: Parameters<typeof buildTaskPrompt>[0];
+    if (input.kind === "file") {
+      const rawPath = await rawPathForUpload(
+        input.filename,
+        today,
+        async (candidate) => {
+          try {
+            await access(path.join(job.staging!, candidate), constants.F_OK);
+            return true;
+          } catch {
+            return false;
+          }
+        },
+      );
+      const title = input.filename.replace(/\.(md|txt)$/i, "");
+      const content = `# ${title}\n\n> Source: uploaded file "${input.filename}"\n> Collected: ${today}\n> Published: Unknown\n\n${input.text}\n`;
+      await mkdir(path.dirname(path.join(job.staging, rawPath)), {
+        recursive: true,
       });
-      controller.signal.throwIfAborted();
-      const verify = await verifyStaging(
-        job.staging,
-        this.c.root,
-        job.baseline,
-      );
-      if (verify.problems.length)
-        throw new QueryError(
-          "ingest",
-          `摄入产物校验失败：${verify.problems.join("；")}`,
-          500,
-        );
-      const warnings = verify.fixed.map(
-        (f) => `已修正 log 条目中的 SHA-256：${f}`,
-      );
-      const lint = await runEvidenceLint(
-        job.staging,
-        this.lintScript,
-        this.c.ingestValidate,
-      );
-      const { changes, deleted, outside, drifted } = await collectChanges(
-        this.c.root,
-        job.staging,
-        job.baseline,
-      );
-      if (deleted.length)
-        warnings.push(`Agent 删除了文件（不会应用）：${deleted.join("、")}`);
-      if (outside.length)
-        warnings.push(
-          `Agent 在工作区外写入了文件（不会应用）：${outside.join("、")}`,
-        );
-      if (drifted.length)
-        warnings.push(
-          `以下文件在摄入运行期间被外部修改，未纳入本次变更，请重新摄入：${drifted.join("、")}`,
-        );
-      job.changes = changes;
-      job.deleted = deleted;
-      job.warnings = warnings;
-      job.lintReport = lint;
-      job.summary = summary;
-      // Re-check the abort right before committing to preview: verification
-      // and linting take a moment, and a cancel that already answered 204
-      // must not surface a preview afterwards.
-      controller.signal.throwIfAborted();
-      job.status = "preview";
-      job.lastUsed = Date.now();
-      this.emit(job, "done", this.previewData(job));
-    } finally {
-      clearTimeout(timer);
+      await writeFile(path.join(job.staging, rawPath), content);
+      task = {
+        kind: "file",
+        source: input.filename,
+        today,
+        rawPath,
+        sha256: sha256(content),
+      };
+    } else {
+      fetchHost = new URL(input.url).hostname;
+      task = { kind: "url", source: input.url, today, priorRaw };
     }
+    job.phase = "load_skill";
+    const { skill, templates } = await loadIngestSkill();
+    job.phase = "agent";
+    const summary = await this.drive(job, {
+      taskPrompt: buildTaskPrompt(task),
+      systemAppend: `${skill}\n\n# File templates\n${templates}`,
+      fetchHost,
+      controller,
+    });
+    controller.signal.throwIfAborted();
+    job.phase = "verify";
+    const verify = await verifyStaging(job.staging, this.c.root, job.baseline);
+    if (verify.problems.length)
+      throw new QueryError(
+        "ingest",
+        `摄入产物校验失败：${verify.problems.join("；")}`,
+        500,
+      );
+    const warnings = verify.fixed.map(
+      (f) => `已修正 log 条目中的 SHA-256：${f}`,
+    );
+    job.phase = "evidence_lint";
+    const lint = await runEvidenceLint(
+      job.staging,
+      this.lintScript,
+      this.c.ingestValidate,
+    );
+    job.phase = "collect_changes";
+    const { changes, deleted, outside, drifted } = await collectChanges(
+      this.c.root,
+      job.staging,
+      job.baseline,
+    );
+    if (deleted.length)
+      warnings.push(`Agent 删除了文件（不会应用）：${deleted.join("、")}`);
+    if (outside.length)
+      warnings.push(
+        `Agent 在工作区外写入了文件（不会应用）：${outside.join("、")}`,
+      );
+    if (drifted.length)
+      warnings.push(
+        `以下文件在摄入运行期间被外部修改，未纳入本次变更，请重新摄入：${drifted.join("、")}`,
+      );
+    job.changes = changes;
+    job.deleted = deleted;
+    job.warnings = warnings;
+    job.lintReport = lint;
+    job.summary = summary;
+    // Re-check the abort right before committing to preview: verification
+    // and linting take a moment, and a cancel that already answered 204
+    // must not surface a preview afterwards.
+    controller.signal.throwIfAborted();
+    job.status = "preview";
+    job.stderrTail = undefined;
+    console.info(
+      JSON.stringify({
+        event: "ingest_preview",
+        jobId: job.id,
+        engine: this.c.ingestEngine,
+        changes: changes.length,
+        elapsedMs: Date.now() - job.createdAt,
+      }),
+    );
+    job.lastUsed = Date.now();
+    this.emit(job, "done", this.previewData(job));
   }
   private async drive(
     job: IngestJob,
@@ -359,9 +400,15 @@ export class IngestStore {
       controller: AbortController;
     },
   ): Promise<string> {
-    const endpoint = ingestEndpoint(this.c);
+    const endpoint =
+      this.c.ingestEngine === "codex"
+        ? { model: this.c.codexIngestModel || "", baseUrl: "", apiKey: "" }
+        : ingestEndpoint(this.c);
+    const agent =
+      this.agent ??
+      (this.c.ingestEngine === "codex" ? codexAgentQuery : claudeAgentQuery);
     let summary = "";
-    for await (const message of this.agent({
+    for await (const message of agent({
       taskPrompt: i.taskPrompt,
       systemAppend: i.systemAppend,
       cwd: job.staging!,
@@ -369,6 +416,9 @@ export class IngestStore {
       maxTurns: this.c.ingestMaxTurns,
       abortController: i.controller,
       fetchHost: i.fetchHost,
+      onStderr: (data) => {
+        job.stderrTail = ((job.stderrTail || "") + data).slice(-16000);
+      },
     })) {
       job.lastUsed = Date.now();
       if (message.type === "tool_use") {

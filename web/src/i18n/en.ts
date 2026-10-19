@@ -10,11 +10,6 @@ const en: Copy = {
     switch: "Switch to Chinese",
   },
   welcome: {
-    eyebrow: "YOUR KNOWLEDGE, CONNECTED",
-    titleLines: [
-      "Start with one question,",
-      "find an answer backed by sources.",
-    ],
     lead: "Search related documents and inspect the evidence behind each answer.",
     suggestions: [
       "What conditions must users meet to join the lottery?",
@@ -60,11 +55,47 @@ const en: Copy = {
     continueReading: "Continue reading",
     empty: "Click a citation in an answer to read its source.",
   },
+  catalog: {
+    title: "Knowledge",
+    close: "Close knowledge directory",
+    filter: "Filter titles or filenames",
+    refresh: "Refresh",
+    loading: "Loading directory…",
+    failed: "Cannot load the directory. Saved documents are unaffected.",
+    retry: "Retry",
+    empty: "No matching documents",
+    recent: "Latest update",
+    raw: "Original sources",
+    system: "Index and logs",
+    types: {
+      Overview: "Overview",
+      Entity: "Entities",
+      Rule: "Rules",
+      Workflow: "Workflows",
+      StateMachine: "State machines",
+      Event: "Events",
+      Other: "Other",
+    },
+  },
+  views: {
+    knowledge: "Knowledge base",
+    breadcrumb: "Document location",
+    document: "Knowledge document",
+  },
+  library: {
+    selectDocument: "Choose a document from the directory on the left.",
+    openCatalogHint: "Click ‘Knowledge’ at the top left to start reading.",
+    ask: "Ask the knowledge base",
+    closeAsk: "Close Q&A",
+    fullScope:
+      "Answers use the entire knowledge base. Open citations to read the source.",
+  },
   fatal: {
     connect: "Cannot reach the knowledge base right now. Please refresh later.",
   },
   ingest: {
-    openButton: "＋ Ingest",
+    fileOnly: "Currently supports .md / .txt file uploads only.",
+    openButton: "Add sources",
     dialogLabel: "Ingest a source",
     intro:
       "Provide a source URL or upload a file. It is preserved as raw evidence, compiled into wiki pages, and written only after you review the preview.",
@@ -92,6 +123,8 @@ const en: Copy = {
     apply: "Apply to the wiki",
     applying: "Applying…",
     discard: "Discard changes",
+    viewUpdates: "View latest update",
+    updateCount: (added, modified) => `${added} added, ${modified} updated`,
     applied:
       "Written to the wiki. You can now query the new knowledge in chat.",
     discarded: "Discarded. The wiki was left unchanged.",

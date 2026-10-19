@@ -6,7 +6,7 @@ import { runQuery, type Factory, type History } from "./agent.js";
 import { Wiki, QueryError } from "./wiki.js";
 import { IngestStore } from "./ingest.js";
 import { registerIngestRoutes } from "./ingest-routes.js";
-import { claudeAgentQuery, type IngestAgentQuery } from "./ingest-sdk.js";
+import type { IngestAgentQuery } from "./ingest-sdk.js";
 type Conversation = {
   wikiId: string;
   history: History;
@@ -16,7 +16,7 @@ type Conversation = {
 export function createApp(
   c: Config,
   factory?: Factory,
-  ingestAgent: IngestAgentQuery = claudeAgentQuery,
+  ingestAgent?: IngestAgentQuery,
 ) {
   const app = express();
   app.disable("x-powered-by");
@@ -65,6 +65,16 @@ export function createApp(
   const checkWiki = (id: unknown) => {
     if (id !== c.wikiId) throw new QueryError("wiki", "知识库标识不匹配", 400);
   };
+  app.get("/api/catalog", async (req, res, next) => {
+    try {
+      checkWiki(req.query.wikiId);
+      res
+        .set("Cache-Control", "no-store")
+        .json(await new Wiki(c.root).catalog());
+    } catch (error) {
+      next(error);
+    }
+  });
   app.get("/api/document", async (req, res, next) => {
     try {
       checkWiki(req.query.wikiId);
