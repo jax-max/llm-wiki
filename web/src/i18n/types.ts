@@ -131,6 +131,13 @@ export interface Copy {
     duplicate: string;
     url: string;
     upload: string;
+    upload_format: string;
+    upload_empty: string;
+    upload_encrypted: string;
+    upload_corrupt: string;
+    upload_limit: string;
+    upload_timeout: string;
+
     ingest_disabled: string;
     ingest: string;
     turns: string;

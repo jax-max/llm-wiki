@@ -4,7 +4,7 @@ English | [简体中文](README_zh.md)
 
 A local, single-user chat interface for the repository's `wiki-query` method. Each turn loads `../skills/wiki-query/SKILL.md`, reads the current wiki, and uses only `search_wiki`, `read_document`, and `wiki_relations`. Answers stream over POST/Fetch SSE; citations open in the central reader with relative links and Raw navigation.
 
-The interface also offers an **ingest entry point**: provide a source URL or upload a `.md`/`.txt` file and it is compiled into the wiki following the `../skills/wiki-ingest` methodology. Compilation runs in a throwaway staging copy driven by Claude Agent SDK or the local Codex CLI; the result is applied to `WIKI_ROOT` only after a per-file diff preview and manual confirmation — cancelling leaves the real library untouched. Chat stays read-only forever.
+The interface also offers an **ingest entry point**: provide a source URL or upload a `.md`/`.txt`/`.docx`/`.pdf`/`.pptx` file and it is compiled into the wiki following the `../skills/wiki-ingest` methodology. Compilation runs in a throwaway staging copy driven by Claude Agent SDK or the local Codex CLI; the result is applied to `WIKI_ROOT` only after a per-file diff preview and manual confirmation — cancelling leaves the real library untouched. Chat stays read-only forever.
 
 ## Run locally (user-operated)
 
@@ -63,7 +63,9 @@ Add sources opens the ingest dialog. Applying refreshes the catalog and displays
 
 The header’s “Add sources” button opens the ingest dialog (hidden when `INGEST_ENABLED=false`, or when using Claude with `LLM_API=openai-completions`). Flow:
 
-1. Enter a source URL or pick a `.md`/`.txt` file (up to `INGEST_MAX_UPLOAD_MB`). Uploads are written straight to raw by the server with their SHA-256; URLs are fetched by the agent via WebFetch and preserved as raw.
+Document extraction runs in a dedicated worker with one parser at a time, a 60-second timeout and a 512 MB worker heap limit. Office decompression is capped at 100 MB and text extracted from binary documents at 2 million characters. Every upload must also produce raw Markdown (including its source header) within the reader’s 8 MB limit; split larger sources before uploading. Corrupt, encrypted, incomplete, oversized and textless documents fail explicitly rather than being silently truncated. Legacy `.doc/.ppt` files and OCR are not supported; run OCR on scans and images first. Complex Word/PowerPoint table recovery depends on the parser. PDF retains extractable text and line breaks; table and multi-column layout recovery is not guaranteed. Extraction is local; extracted text is then passed to the configured ingest model.
+
+1. Enter a source URL or pick a `.md`/`.txt`/`.docx`/`.pdf`/`.pptx` file (up to `INGEST_MAX_UPLOAD_MB`). Word and PowerPoint are parsed locally by pinned `officeparser`, retaining text, headings, lists, tables and actual slide order. PDF text and page numbers are extracted by pinned `pdfjs-dist`, loading bundled local CMaps for Chinese without a CDN. Extracted Markdown and its SHA-256 are saved in staging and applied only after confirmation; binary originals are not retained; URLs are fetched by the agent via WebFetch and preserved as raw.
 2. Deterministic pre-checks run before any model call: a body SHA identical to an existing raw is rejected; a URL matching an existing raw's Source produces a "will coexist as a new version" notice.
 3. The agent compiles pages and log entries in a staging copy following wiki-ingest rules, with live progress in the dialog.
 4. After compilation every changed file is previewed as a diff (plus the evidence-check report); “Apply” writes them into the wiki, “Discard” cancels. One ingest at a time; if the real library changed after the preview, apply is refused and the ingest must be redone.
@@ -87,14 +89,14 @@ The header’s “Add sources” button opens the ingest dialog (hidden when `IN
 | `INGEST_ENGINE` | `claude` (default) or `codex` |
 | `CODEX_INGEST_MODEL` | Optional, Codex only; omitted uses the CLI default, independently of query/Claude models |
 | `INGEST_MODEL` | Claude only; defaults to `LLM_MODEL`, independently configurable |
-| `INGEST_MAX_UPLOAD_MB` | `2`; 1–16. Upload size cap (multipart body limit) |
+| `INGEST_MAX_UPLOAD_MB` | `20`; 1–100. Upload size cap (multipart body limit) |
 | `INGEST_TIMEOUT_MS` | Retired and ignored. Ingest has no application-level overall timeout; cancel manually. Provider/CLI network failures still end the job. |
 | `INGEST_MAX_TURNS` | `80`; 1–500. Claude only; Codex has no application-level step or overall time limit |
 | `INGEST_VALIDATE` | `auto`; `on`/`off` toggles the evidence-check (check_evidence.py) report attached to the preview |
 
 Claude requires `LLM_API=anthropic-messages`. Both engines require readable `../skills/wiki-ingest/SKILL.md` and `references/templates.md`; a missing skill fails the ingest job.
 
-For temporary file ingest using ChatGPT login, install Codex CLI, run `codex login` as the backend user and select ChatGPT, then set `INGEST_ENGINE=codex` in `.env` and restart. No token or key is copied. Queries retain their `LLM_*` configuration. Codex accepts `.md`/`.txt` uploads only; URL input is disabled and URL API requests return 400. Optionally set `CODEX_INGEST_MODEL`; otherwise the CLI default applies. Set `INGEST_ENGINE=claude` to switch back.
+For temporary file ingest using ChatGPT login, install Codex CLI, run `codex login` as the backend user and select ChatGPT, then set `INGEST_ENGINE=codex` in `.env` and restart. No token or key is copied. Queries retain their `LLM_*` configuration. Codex accepts `.md`/`.txt`/`.docx`/`.pdf`/`.pptx` uploads only; URL input is disabled and URL API requests return 400. Optionally set `CODEX_INGEST_MODEL`; otherwise the CLI default applies. Set `INGEST_ENGINE=claude` to switch back.
 
 Codex CLI must support `exec --json`, `--ignore-user-config`, `--ignore-rules` and `--ephemeral` (check `codex exec --help`). Each run ignores user provider/rule configuration and requires ChatGPT login while retaining the auth directory; custom user model defaults are not loaded. Missing CLI, expired login or unsupported flags fail the job with details in backend `ingest_failed` logs, without fallback to Claude.
 
@@ -132,7 +134,7 @@ Pi SDK and its related packages are pinned to 1.1.0; `@anthropic-ai/claude-agent
 | `POST /api/chat` | `{ wikiId, message, sessionId? }`; SSE `session`, `progress`, `delta`, `done` or `error` |
 | `DELETE /api/chat/:sessionId` | Cancel and destroy; 204 |
 | `GET /api/document?wikiId=default&path=wiki/index.md&offset=0` | Title, relative path, text, offset, total and next offset |
-| `POST /api/ingest` | JSON `{wikiId, url}` or multipart (`wikiId`+`file`); `202 {jobId, status, notices}`. Error codes: `url`/`upload`/`wiki` (400), `duplicate`/`busy` (409), `capacity` (429), `ingest_disabled` (503) |
+| `POST /api/ingest` | JSON `{wikiId, url}` or multipart (`wikiId`+`file`); `202 {jobId, status, notices}`. Error codes: `url`/`upload`/`wiki`/`upload_format`/`upload_empty`/`upload_encrypted`/`upload_corrupt`/`upload_limit`/`upload_timeout` (400), upload size overflow (413), `duplicate`/`busy` (409), `capacity` (429), `ingest_disabled` (503) |
 | `GET /api/ingest/:id/events` | SSE: `status` (with buffered replay), `progress`, `delta`, terminal `done {changes,…}` / `status {applied\|discarded}` / `error`; disconnects never abort the job — reconnect by id |
 | `GET /api/ingest/:id/preview` | Change list (path, added/modified, line counts, diff), summary, warnings and the evidence-check report; 409 outside preview |
 | `POST /api/ingest/:id/apply` | `200 {applied:[paths]}`; 409 `conflict` if the real library changed after preview |

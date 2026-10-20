@@ -94,7 +94,8 @@ const en: Copy = {
     connect: "Cannot reach the knowledge base right now. Please refresh later.",
   },
   ingest: {
-    fileOnly: "Currently supports .md / .txt file uploads only.",
+    fileOnly:
+      "Currently supports .md / .txt / .docx / .pdf / .pptx file uploads only.",
     openButton: "Add sources",
     dialogLabel: "Ingest a source",
     intro:
@@ -102,10 +103,11 @@ const en: Copy = {
     urlLabel: "Source URL",
     urlPlaceholder: "https://example.com/article",
     fileLabel: "Or upload a file",
-    fileHint: (mb) => `.md / .txt files up to ${mb} MB`,
+    fileHint: (mb) =>
+      `.md / .txt / .docx / .pdf / .pptx files up to ${mb} MB; run OCR on scanned documents first`,
     clearFile: "Clear selected file",
     submit: "Start ingest",
-    submitting: "Submitting…",
+    submitting: "Uploading and extracting…",
     cancel: "Cancel",
     close: "Close",
     stopRun: "■ Cancel ingest",
@@ -148,7 +150,19 @@ const en: Copy = {
     fallback: "Cannot complete the answer right now. Please try again later.",
     duplicate: "This content already exists in raw. No need to ingest again.",
     url: "Please provide a valid http(s) URL.",
-    upload: "Only .md / .txt files within the size limit are supported.",
+    upload:
+      "Only .md / .txt / .docx / .pdf / .pptx files within the size limit are supported.",
+    upload_format:
+      "Use .md / .txt / .docx / .pdf / .pptx and check that the extension matches the file.",
+    upload_empty:
+      "No body text was extracted. Run OCR on scanned documents or images before uploading.",
+    upload_encrypted:
+      "Encrypted documents are not supported. Remove the password and upload again.",
+    upload_corrupt:
+      "Cannot read this document. Check for damage or an incorrect format.",
+    upload_limit:
+      "The document could not be fully extracted or exceeded parsing limits. Split it or convert it and retry.",
+    upload_timeout: "Document extraction timed out. Split the file and retry.",
     ingest_disabled: "Ingest is disabled or the model protocol is unsupported.",
     ingest: "The ingest failed. Please try again.",
     turns: "The ingest exceeded its step budget. Please try again.",

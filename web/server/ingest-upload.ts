@@ -1,8 +1,18 @@
-import { QueryError } from "./wiki.js";
+import { MAX_DOCUMENT_BYTES, QueryError } from "./wiki.js";
 import type { Config } from "./config.js";
+import { DOCUMENT_LIMITS, parseDocument } from "./ingest-document.js";
 export type IngestInput =
   | { kind: "url"; url: string }
   | { kind: "file"; filename: string; text: string };
+
+export function rawContentForUpload(
+  filename: string,
+  text: string,
+  today: string,
+): string {
+  const title = filename.replace(/\.(md|txt|docx|pdf|pptx)$/i, "");
+  return `# ${title}\n\n> Source: uploaded file "${filename}"\n> Collected: ${today}\n> Published: Unknown\n\n${text}\n`;
+}
 export function validateUrl(url: unknown): string {
   if (typeof url !== "string" || !url.trim())
     throw new QueryError("url", "缺少来源 URL");
@@ -30,7 +40,7 @@ export async function rawPathForUpload(
 ): Promise<string> {
   const stem =
     filename
-      .replace(/\.(md|txt)$/i, "")
+      .replace(/\.(md|txt|docx|pdf|pptx)$/i, "")
       .replace(/[\u0000-\u001f\\/:*?"<>|]/g, "")
       .trim()
       .replace(/\s+/g, "-")
@@ -49,7 +59,9 @@ export async function readIngestInput(
   },
   c: Config,
   checkWiki: (id: unknown) => void,
+  signal?: AbortSignal,
 ): Promise<IngestInput> {
+  signal?.throwIfAborted();
   // Content-Type values are case-insensitive; express.raw's type-is matcher
   // already tolerates case, so the branch check must too.
   const contentType = String(req.headers["content-type"] || "");
@@ -79,14 +91,49 @@ export async function readIngestInput(
   const file = form.get("file");
   if (!(file instanceof File))
     throw new QueryError("upload", "缺少上传文件（file 字段）");
-  if (!/\.(md|txt)$/i.test(file.name))
-    throw new QueryError("upload", "仅支持 .md / .txt 文件");
-  const text = await file.text();
-  if (text.includes("\0")) throw new QueryError("upload", "文件包含非法字符");
-  if (!text.trim()) throw new QueryError("upload", "文件内容为空");
-  // Strip control characters and quotes: the name lands inside the raw
-  // template's `> Source: uploaded file "…"` header line.
+  const extension = file.name
+    .match(/\.(md|txt|docx|pdf|pptx)$/i)?.[1]
+    ?.toLowerCase();
+  if (!extension)
+    throw new QueryError(
+      "upload_format",
+      "仅支持 .md / .txt / .docx / .pdf / .pptx 文件",
+    );
+  if (file.size > c.ingestMaxUploadMb * 1024 * 1024)
+    throw new QueryError("upload", "上传文件超过大小限制", 413);
+  if (
+    (extension === "md" || extension === "txt") &&
+    file.size > MAX_DOCUMENT_BYTES
+  )
+    throw new QueryError(
+      "upload_limit",
+      "原始资料超过 8 MB 阅读限制，请拆分后重试",
+    );
+  // Validate the name before starting potentially expensive binary parsing.
+  // The name lands in the raw template's quoted Source header.
   const filename = file.name.replace(/[\u0000-\u001f"]/g, "").trim();
   if (!filename) throw new QueryError("upload", "文件名无效");
+  const text =
+    extension === "md" || extension === "txt"
+      ? await file.text()
+      : await parseDocument(
+          extension as "docx" | "pdf" | "pptx",
+          new Uint8Array(await file.arrayBuffer()),
+          DOCUMENT_LIMITS,
+          signal,
+        );
+  signal?.throwIfAborted();
+  if (text.includes("\0")) throw new QueryError("upload", "文件包含非法字符");
+  if (!text.trim()) throw new QueryError("upload", "文件内容为空");
+  const raw = rawContentForUpload(
+    filename,
+    text,
+    new Date().toISOString().slice(0, 10),
+  );
+  if (Buffer.byteLength(raw, "utf8") > MAX_DOCUMENT_BYTES)
+    throw new QueryError(
+      "upload_limit",
+      "转换后的原始资料超过 8 MB 阅读限制，请拆分后重试",
+    );
   return { kind: "file", filename, text };
 }

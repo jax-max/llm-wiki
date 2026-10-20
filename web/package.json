@@ -16,12 +16,13 @@
     "dev": "concurrently -k \"tsx watch server/index.ts\" \"vite\"",
     "build": "tsc --noEmit && vite build && tsc -p tsconfig.server.json",
     "start": "NODE_ENV=production node dist/server/index.js",
-    "test": "node --import tsx --test tests/core.test.ts tests/ingest.test.ts tests/ingest-codex.test.ts",
+    "test": "node --import tsx --test --test-skip-pattern='ingest HTTP API' tests/core.test.ts tests/ingest.test.ts tests/ingest-codex.test.ts tests/ingest-document.test.ts",
     "format": "prettier --write \"{src,server,tests,scripts}/**/*.{ts,tsx,css}\" \"*.{json,ts,js,html}\"",
     "format:check": "prettier --check \"{src,server,tests,scripts}/**/*.{ts,tsx,css}\" \"*.{json,ts,js,html}\"",
     "smoke:live": "tsx scripts/smoke-live.ts",
     "preview:fixture": "tsx tests/preview.ts",
     "test:web": "node --import tsx --test tests/http.test.ts tests/protocol.test.ts",
+    "test:ingest:web": "node --import tsx --test --test-name-pattern='ingest HTTP API' tests/ingest.test.ts",
     "test:client": "node --import tsx --test tests/markdown.test.ts tests/presentation.test.ts tests/ui.test.ts tests/catalog-ui.test.ts"
   },
   "dependencies": {
@@ -32,6 +33,8 @@
     "dotenv": "16.4.5",
     "express": "4.21.2",
     "marked": "18.0.12",
+    "officeparser": "8.1.1",
+    "pdfjs-dist": "6.2.108",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "typebox": "1.3.27"
@@ -45,6 +48,7 @@
     "@vitejs/plugin-react": "4.7.0",
     "autoprefixer": "10.4.22",
     "concurrently": "9.2.1",
+    "fflate": "0.8.3",
     "jsdom": "26.1.0",
     "postcss": "8.5.6",
     "prettier": "3.6.2",

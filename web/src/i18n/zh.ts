@@ -93,7 +93,7 @@ const zh: Copy = {
     connect: "暂时无法连接知识库，请稍后刷新页面。",
   },
   ingest: {
-    fileOnly: "当前仅支持上传 .md / .txt 文件。",
+    fileOnly: "当前仅支持上传 .md / .txt / .docx / .pdf / .pptx 文件。",
     openButton: "添加资料",
     dialogLabel: "摄入新资料",
     intro:
@@ -101,10 +101,11 @@ const zh: Copy = {
     urlLabel: "来源 URL",
     urlPlaceholder: "https://example.com/article",
     fileLabel: "或上传文件",
-    fileHint: (mb) => `支持 .md / .txt 文件，最大 ${mb} MB`,
+    fileHint: (mb) =>
+      `支持 .md / .txt / .docx / .pdf / .pptx 文件，最大 ${mb} MB；扫描件请先做 OCR`,
     clearFile: "清除已选文件",
     submit: "开始摄入",
-    submitting: "正在提交…",
+    submitting: "正在上传并解析…",
     cancel: "取消",
     close: "关闭",
     stopRun: "■ 取消摄入",
@@ -143,7 +144,15 @@ const zh: Copy = {
     fallback: "暂时无法完成回答，请稍后重试。",
     duplicate: "内容与已有 raw 完全一致，无需重复摄入。",
     url: "请提供有效的 http(s) 链接。",
-    upload: "仅支持 .md / .txt 文件，且不超过大小限制。",
+    upload: "仅支持 .md / .txt / .docx / .pdf / .pptx 文件，且不超过大小限制。",
+    upload_format:
+      "支持 .md / .txt / .docx / .pdf / .pptx，请检查文件格式与扩展名。",
+    upload_empty: "未提取到正文；扫描件或图片请先进行 OCR 后重新上传。",
+    upload_encrypted: "暂不支持加密文档，请移除密码后重新上传。",
+    upload_corrupt: "无法解析文档，请检查文件是否损坏或格式是否正确。",
+    upload_limit:
+      "文档内容未能完整提取或超过解析限制，请拆分或转换格式后重试。",
+    upload_timeout: "文档解析超时，请拆分后重试。",
     ingest_disabled: "摄入功能未启用，或当前模型协议不支持。",
     ingest: "摄入过程出错，请重试。",
     turns: "摄入步骤数达到上限，请重试。",

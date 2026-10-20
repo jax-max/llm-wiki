@@ -4,7 +4,7 @@
 
 本仓库 `wiki-query` 方法的本地单用户对话界面。每轮加载 `../skills/wiki-query/SKILL.md`，读取当前 wiki，只使用 `search_wiki`、`read_document` 和 `wiki_relations` 三个工具。回答通过 POST/Fetch SSE 流式返回；引用在中间阅读区打开，支持相对链接与 Raw 导航。
 
-界面还提供**摄入入口**：输入来源 URL 或上传 `.md`/`.txt` 文件，按 `../skills/wiki-ingest` 的方法论整理进知识库。编译由 Claude Agent SDK 或本机 Codex CLI 驱动的 Agent 在临时 staging 副本上完成，产物经逐文件 diff 预览、人工确认后才写入 `WIKI_ROOT`，取消则真实库零改动。查询对话保持永远只读。
+界面还提供**摄入入口**：输入来源 URL 或上传 `.md`/`.txt`/`.docx`/`.pdf`/`.pptx` 文件，按 `../skills/wiki-ingest` 的方法论整理进知识库。编译由 Claude Agent SDK 或本机 Codex CLI 驱动的 Agent 在临时 staging 副本上完成，产物经逐文件 diff 预览、人工确认后才写入 `WIKI_ROOT`，取消则真实库零改动。查询对话保持永远只读。
 
 ## 本地运行（用户执行）
 
@@ -58,7 +58,9 @@ npm start
 
 顶栏「添加资料」打开摄入对话框（`INGEST_ENABLED=false` 时隐藏；Claude 引擎在 `LLM_API=openai-completions` 时也隐藏）。流程：
 
-1. 输入来源 URL 或选择 `.md`/`.txt` 文件（不超过 `INGEST_MAX_UPLOAD_MB`）。上传文件由服务端直接按 raw 模板落盘并计算 SHA-256；URL 由 Agent 经 WebFetch 抓取后保存 raw。
+文档解析在独立工作线程中执行，最多同时解析一个文件，限时 60 秒、工作线程堆上限 512 MB；Office 累计解压上限 100 MB，二进制文档提取文本上限 200 万字符。所有上传转换后的 raw Markdown（含来源头）还须符合阅读接口的 8 MB 限制，超出时请拆分资料。损坏、加密、内容不完整、超限或无正文的文件会明确报错，不静默截断。不支持旧版 `.doc/.ppt`；未启用 OCR，扫描 PDF 和图片资料请先识别文字。Word/PPT 的复杂表格恢复以解析库能力为限；PDF 保留可提取的文字和换行，不保证恢复表格与多栏布局。解析在本机完成，提取文本随后按现有流程交给模型编译。
+
+1. 输入来源 URL 或选择 `.md`/`.txt`/`.docx`/`.pdf`/`.pptx` 文件（不超过 `INGEST_MAX_UPLOAD_MB`）。Word、PPT 由服务端通过锁定版本的 `officeparser` 提取正文、标题、列表和表格；PDF 通过锁定版本的 `pdfjs-dist` 提取文本与页码，使用包内本地 CMap 支持中文，不访问 CDN。PPT 保留实际幻灯片顺序；提取文本按 raw 模板保存为 Markdown 并计算 SHA-256（仅在 staging 中保存，确认后写入真实库），不保存原始二进制文件；URL 由 Agent 经 WebFetch 抓取后保存 raw。
 2. 摄入前服务端做确定性预检：正文 SHA 与既有 raw 完全一致会直接拒绝；URL 与既有 raw 的 Source 相同时会提示"将作为新版本并存"。
 3. Agent 按 wiki-ingest 规范在 staging 副本上编译页面与 log，界面实时显示进度。
 4. 编译完成后逐文件预览变更 diff（含证据校验报告），点「确认写入知识库」应用，或「丢弃」取消。同一时间只允许一个摄入任务；预览后若真实库被外部修改，应用会被拒绝并要求重摄。
@@ -82,14 +84,14 @@ npm start
 | `INGEST_ENGINE` | `claude` 或 `codex`；默认 `claude` |
 | `CODEX_INGEST_MODEL` | 可选；Codex 专用，留空使用 CLI 默认模型，不沿用 GLM 模型配置 |
 | `INGEST_MODEL` | 仅 Claude；默认同 `LLM_MODEL`，可与查询模型区分 |
-| `INGEST_MAX_UPLOAD_MB` | `2`；1–16。上传文件大小上限（multipart 请求体限制） |
+| `INGEST_MAX_UPLOAD_MB` | `20`；1–100。上传文件大小上限（multipart 请求体限制） |
 | `INGEST_TIMEOUT_MS` | 已停用并忽略；摄入无应用层整体超时限制，可手动取消。服务方或 CLI 的网络失败仍会结束任务。 |
 | `INGEST_MAX_TURNS` | `80`；1–500。仅 Claude 的步数上限；Codex 无应用层步数或整体超时限制 |
 | `INGEST_VALIDATE` | `auto`；`on`/`off` 控制预览附带的证据校验（check_evidence.py）报告 |
 
 Claude 引擎要求 `LLM_API=anthropic-messages`。两个引擎均依赖仓库 `../skills/wiki-ingest/SKILL.md` 与 `references/templates.md` 可读；缺失时摄入任务报错。
 
-临时使用本机 ChatGPT 登录摄入文件：安装 Codex CLI，使用运行后端的同一用户执行 `codex login` 并选择 ChatGPT 登录，在 `.env` 设置 `INGEST_ENGINE=codex` 后重启后端。不复制登录 token 或 API key；查询仍使用 `LLM_*`。Codex 模式仅支持 `.md`/`.txt` 上传，URL 输入禁用，API URL 请求返回 400。可选 `CODEX_INGEST_MODEL` 指定模型；留空使用 CLI 默认值。恢复 `INGEST_ENGINE=claude` 即可切回。
+临时使用本机 ChatGPT 登录摄入文件：安装 Codex CLI，使用运行后端的同一用户执行 `codex login` 并选择 ChatGPT 登录，在 `.env` 设置 `INGEST_ENGINE=codex` 后重启后端。不复制登录 token 或 API key；查询仍使用 `LLM_*`。Codex 模式仅支持 `.md`/`.txt`/`.docx`/`.pdf`/`.pptx` 上传，URL 输入禁用，API URL 请求返回 400。可选 `CODEX_INGEST_MODEL` 指定模型；留空使用 CLI 默认值。恢复 `INGEST_ENGINE=claude` 即可切回。
 
 适配器要求 Codex CLI 支持 `exec --json`、`--ignore-user-config`、`--ignore-rules` 和 `--ephemeral`（可用 `codex exec --help` 检查）。每次启动忽略用户 provider/规则配置并强制 ChatGPT 登录，保留认证目录；不读取用户自定义模型默认值。CLI 缺失、登录失效或版本不支持时任务失败，详情见后端 `ingest_failed` 日志，不自动回退 Claude。
 
@@ -127,7 +129,7 @@ Pi SDK 及相关包锁定在 1.1.0；`@anthropic-ai/claude-agent-sdk` 锁定在 
 | `POST /api/chat` | `{ wikiId, message, sessionId? }`；SSE `session`、`progress`、`delta`、`done` 或 `error` |
 | `DELETE /api/chat/:sessionId` | 取消并销毁；204 |
 | `GET /api/document?wikiId=default&path=wiki/index.md&offset=0` | 标题、相对路径、正文、偏移、总数和下一偏移 |
-| `POST /api/ingest` | JSON `{wikiId, url}` 或 multipart（`wikiId`+`file`）；`202 {jobId, status, notices}`。错误码：`url`/`upload`(400)、`wiki`(400)、`duplicate`/`busy`(409)、`capacity`(429)、`ingest_disabled`(503) |
+| `POST /api/ingest` | JSON `{wikiId, url}` 或 multipart（`wikiId`+`file`）；`202 {jobId, status, notices}`。错误码：`url`/`upload`/`upload_format`/`upload_empty`/`upload_encrypted`/`upload_corrupt`/`upload_limit`/`upload_timeout`(400)、`wiki`(400)、上传超限(413)、`duplicate`/`busy`(409)、`capacity`(429)、`ingest_disabled`(503) |
 | `GET /api/ingest/:id/events` | SSE：`status`（含缓冲重放）、`progress`、`delta`、终态 `done {changes,…}` / `status {applied\|discarded}` / `error`；断连不中止任务，可按 id 重连续看 |
 | `GET /api/ingest/:id/preview` | 变更清单（路径、added/modified、行数、diff）、摘要、警告与证据校验报告；非预览状态 409 |
 | `POST /api/ingest/:id/apply` | `200 {applied:[paths]}`；真实库在预览后被外部改动则 409 `conflict` |

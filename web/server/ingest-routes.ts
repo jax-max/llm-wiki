@@ -7,6 +7,7 @@ export function registerIngestRoutes(
   app: express.Express,
   c: Config,
   store: IngestStore,
+  signal?: AbortSignal,
 ) {
   const checkWiki = (id: unknown) => {
     if (id !== c.wikiId) throw new QueryError("wiki", "知识库标识不匹配", 400);
@@ -21,7 +22,8 @@ export function registerIngestRoutes(
     }),
     async (req, res, next) => {
       try {
-        const input = await readIngestInput(req, c, checkWiki);
+        const input = await readIngestInput(req, c, checkWiki, signal);
+        signal?.throwIfAborted();
         const job = await store.start(input);
         res
           .status(202)

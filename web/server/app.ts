@@ -22,6 +22,7 @@ export function createApp(
   app.disable("x-powered-by");
   const sessions = new Map<string, Conversation>();
   const ingest = new IngestStore(c, ingestAgent);
+  const shutdown = new AbortController();
   const cleanup = setInterval(() => {
     for (const [id, s] of sessions)
       if (!s.controller && Date.now() - s.lastUsed > 30 * 60 * 1000)
@@ -30,6 +31,7 @@ export function createApp(
   }, 60000);
   cleanup.unref();
   const close = () => {
+    shutdown.abort(new QueryError("cancelled", "服务停止", 503));
     clearInterval(cleanup);
     for (const s of sessions.values())
       s.controller?.abort(new QueryError("cancelled", "服务停止"));
@@ -201,7 +203,7 @@ export function createApp(
       );
     }
   });
-  registerIngestRoutes(app, c, ingest);
+  registerIngestRoutes(app, c, ingest, shutdown.signal);
   app.use("/api", (_req, res) => res.status(404).json({ error: "接口不存在" }));
   app.use(express.static(path.join(webRoot, "dist/client")));
   app.get("*", (_req, res) =>

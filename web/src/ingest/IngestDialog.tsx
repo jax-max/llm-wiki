@@ -187,7 +187,7 @@ export default function IngestDialog({
           <button
             aria-label={t.ingest.close}
             onClick={onClose}
-            disabled={stage === "running"}
+            disabled={submitting || stage === "running"}
           >
             ✕
           </button>
@@ -200,7 +200,7 @@ export default function IngestDialog({
               type="url"
               value={url}
               placeholder={t.ingest.urlPlaceholder}
-              disabled={!!file || !urlSupported}
+              disabled={submitting || !!file || !urlSupported}
               onChange={(e) => setUrl(e.target.value)}
             />
             {!urlSupported && (
@@ -210,8 +210,8 @@ export default function IngestDialog({
             <input
               ref={fileInput}
               type="file"
-              accept=".md,.txt"
-              disabled={!!url.trim()}
+              accept=".md,.txt,.docx,.pdf,.pptx"
+              disabled={submitting || !!url.trim()}
               onChange={(e) => setFile(e.target.files?.[0])}
             />
             <span className="ingest-hint">
@@ -225,6 +225,7 @@ export default function IngestDialog({
                   className="ingest-clear"
                   aria-label={t.ingest.clearFile}
                   title={t.ingest.clearFile}
+                  disabled={submitting}
                   onClick={() => {
                     setFile(undefined);
                     if (fileInput.current) fileInput.current.value = "";

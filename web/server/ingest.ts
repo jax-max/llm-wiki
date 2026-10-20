@@ -4,7 +4,11 @@ import path from "node:path";
 import type { Config } from "./config.js";
 import { ingestSkillDir } from "./config.js";
 import { QueryError } from "./wiki.js";
-import { rawPathForUpload, type IngestInput } from "./ingest-upload.js";
+import {
+  rawContentForUpload,
+  rawPathForUpload,
+  type IngestInput,
+} from "./ingest-upload.js";
 import {
   createStaging,
   cleanupStaging,
@@ -61,6 +65,7 @@ const FINISHED_KEEP_MS = 60 * 60_000;
 const sha256 = (data: string) =>
   createHash("sha256").update(data).digest("hex");
 export class IngestStore {
+  private closed = false;
   private jobs = new Map<string, IngestJob>();
   private buffers = new Map<string, { event: string; data: unknown }[]>();
   private listeners = new Map<string, Set<Listener>>();
@@ -73,6 +78,8 @@ export class IngestStore {
     private agent?: IngestAgentQuery,
   ) {}
   async start(input: IngestInput): Promise<IngestJob> {
+    if (this.closed)
+      throw new QueryError("ingest_disabled", "摄入服务已停止", 503);
     if (!this.c.ingestAvailable)
       throw new QueryError(
         "ingest_disabled",
@@ -82,7 +89,7 @@ export class IngestStore {
     if (this.c.ingestEngine === "codex" && input.kind === "url")
       throw new QueryError(
         "unsupported",
-        "当前摄入仅支持上传 .md / .txt 文件",
+        "当前摄入仅支持上传 .md / .txt / .docx / .pdf / .pptx 文件",
         400,
       );
     // Reserve the slot synchronously so concurrent starts cannot both slip
@@ -107,9 +114,16 @@ export class IngestStore {
       // Deterministic pre-checks the model is never trusted with: identical
       // content is rejected, a same-URL re-ingestion becomes a visible notice.
       const sources = await scanSources(this.c.root);
+      if (this.closed)
+        throw new QueryError("ingest_disabled", "摄入服务已停止", 503);
       let priorRaw: { rawPath: string; collected: string } | undefined;
       if (input.kind === "file") {
-        const existing = sources.byBodySha.get(sha256(input.text));
+        // The raw template appends a newline after the uploaded body. Compare
+        // that representation too, so re-uploading extracted (trimmed) text
+        // is detected without changing the original input or existing hashes.
+        const existing =
+          sources.byBodySha.get(sha256(input.text)) ??
+          sources.byBodySha.get(sha256(input.text + "\n"));
         if (existing) {
           this.jobs.delete(job.id);
           this.buffers.delete(job.id);
@@ -213,6 +227,7 @@ export class IngestStore {
     }
   }
   close() {
+    this.closed = true;
     for (const job of this.jobs.values())
       if (job.status === "running")
         job.controller?.abort(new QueryError("cancelled", "服务停止"));
@@ -308,8 +323,7 @@ export class IngestStore {
           }
         },
       );
-      const title = input.filename.replace(/\.(md|txt)$/i, "");
-      const content = `# ${title}\n\n> Source: uploaded file "${input.filename}"\n> Collected: ${today}\n> Published: Unknown\n\n${input.text}\n`;
+      const content = rawContentForUpload(input.filename, input.text, today);
       await mkdir(path.dirname(path.join(job.staging, rawPath)), {
         recursive: true,
       });

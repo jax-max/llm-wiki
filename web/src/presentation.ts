@@ -64,6 +64,13 @@ export function errorMessage(
     duplicate: errors.duplicate,
     url: errors.url,
     upload: errors.upload,
+    upload_format: errors.upload_format,
+    upload_empty: errors.upload_empty,
+    upload_encrypted: errors.upload_encrypted,
+    upload_corrupt: errors.upload_corrupt,
+    upload_limit: errors.upload_limit,
+    upload_timeout: errors.upload_timeout,
+
     ingest_disabled: errors.ingest_disabled,
     ingest: errors.ingest,
     turns: errors.turns,

@@ -106,3 +106,23 @@ test("locale resolution prefers storage, then browser languages, then default", 
   assert.equal(resolveLocale(null, []), "zh");
   assert.equal(resolveLocale("bogus", ["fr-FR"]), "zh");
 });
+
+test("document upload failures have distinct localized guidance", () => {
+  for (const locale of ["zh", "en"] as const) {
+    const codes = [
+      "upload_format",
+      "upload_empty",
+      "upload_encrypted",
+      "upload_corrupt",
+      "upload_limit",
+      "upload_timeout",
+    ];
+    const messages = codes.map((code) =>
+      errorMessage({ code, message: "/private/internal" }, locale),
+    );
+    assert.equal(new Set(messages).size, codes.length);
+    assert.match(messages[1], /OCR/);
+    for (const message of messages)
+      assert.doesNotMatch(message, /private|internal/);
+  }
+});

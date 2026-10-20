@@ -1,5 +1,6 @@
 import path from "node:path";
 import { realpath, readFile, readdir, stat } from "node:fs/promises";
+export const MAX_DOCUMENT_BYTES = 8 * 1024 * 1024;
 export class QueryError extends Error {
   constructor(
     public code: string,
@@ -89,7 +90,7 @@ export class Wiki {
     )
       throw new QueryError("path", "来源路径越界");
     const s = await stat(target);
-    if (!s.isFile() || s.size > 8 * 1024 * 1024)
+    if (!s.isFile() || s.size > MAX_DOCUMENT_BYTES)
       throw new QueryError("document", "来源不是文档或超过 8 MB");
     return { target, relative: canonical };
   }

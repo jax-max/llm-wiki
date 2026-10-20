@@ -130,7 +130,7 @@ export async function loadConfig(
     ingestAvailable:
       ingestEnabled &&
       (ingestEngine === "codex" || api === "anthropic-messages"),
-    ingestMaxUploadMb: integer("INGEST_MAX_UPLOAD_MB", 2, 16),
+    ingestMaxUploadMb: integer("INGEST_MAX_UPLOAD_MB", 20, 100),
     ingestMaxTurns: integer("INGEST_MAX_TURNS", 80, 500),
     ingestValidate: ingestValidate as Config["ingestValidate"],
   };

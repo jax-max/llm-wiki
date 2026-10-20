@@ -407,6 +407,16 @@ for (const width of [1400, 1024, 390]) {
       );
       await click(button("添加资料", document.querySelector("header")!));
       assert.ok(document.querySelector(".ingest-dialog"));
+      assert.equal(
+        document.querySelector<HTMLInputElement>(
+          '.ingest-dialog input[type="file"]',
+        )!.accept,
+        ".md,.txt,.docx,.pdf,.pptx",
+      );
+      assert.match(
+        document.querySelector(".ingest-dialog")!.textContent!,
+        /OCR/,
+      );
       await enter(
         document.querySelector<HTMLInputElement>(
           '.ingest-dialog input[type="url"]',
@@ -513,6 +523,70 @@ test("late document responses cannot replace a newer selection", async () => {
     });
     assert.match(reader().textContent!, /当前正文/);
     assert.doesNotMatch(reader().textContent!, /过期正文/);
+  } finally {
+    await act(async () => root.unmount());
+    globalThis.fetch = originalFetch;
+    dom.window.localStorage.clear();
+  }
+});
+
+// User executes this interaction regression through npm run test:client.
+test("ingest form cannot close or change inputs while upload/extraction is pending", async () => {
+  dom.window.localStorage.setItem(STORAGE_KEY, "zh");
+  const { default: IngestDialog } = await import(
+    "../src/ingest/IngestDialog.js"
+  );
+  const originalFetch = globalThis.fetch;
+  let resolveUpload!: (response: Response) => void;
+  globalThis.fetch = async () =>
+    new Promise<Response>((resolve) => {
+      resolveUpload = resolve;
+    });
+  let closeCalls = 0;
+  const root = createRoot(document.getElementById("root")!);
+  try {
+    await act(async () =>
+      root.render(
+        React.createElement(IngestDialog, {
+          wikiId: "default",
+          maxUploadMb: 20,
+          onClose: () => {
+            closeCalls++;
+          },
+        }),
+      ),
+    );
+    const url = document.querySelector<HTMLInputElement>(
+      '.ingest-dialog input[type="url"]',
+    )!;
+    await enter(url, "https://example.com/pending");
+    await click(button("开始摄入"));
+    const close = document.querySelector<HTMLButtonElement>(
+      ".ingest-head button",
+    )!;
+    assert.equal(close.disabled, true);
+    assert.equal(button("取消")!.disabled, true);
+    assert.equal(url.disabled, true);
+    assert.equal(
+      document.querySelector<HTMLInputElement>(
+        '.ingest-dialog input[type="file"]',
+      )!.disabled,
+      true,
+    );
+    await click(close);
+    assert.equal(closeCalls, 0);
+    await act(async () => {
+      resolveUpload(Response.json({ code: "upload_corrupt" }, { status: 400 }));
+      await flush();
+    });
+    assert.equal(close.disabled, false);
+    assert.equal(url.disabled, false);
+    assert.match(
+      document.querySelector('[role="alert"]')!.textContent!,
+      /无法解析文档/,
+    );
+    await click(close);
+    assert.equal(closeCalls, 1);
   } finally {
     await act(async () => root.unmount());
     globalThis.fetch = originalFetch;

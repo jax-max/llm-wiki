@@ -168,7 +168,12 @@ test("ingest configuration defaults, validation and availability", async () => {
   const c = await loadConfig(baseEnv);
   assert.equal(c.ingestEnabled, true);
   assert.equal(c.ingestAvailable, true);
-  assert.equal(c.ingestMaxUploadMb, 2);
+  assert.equal(c.ingestMaxUploadMb, 20);
+  assert.equal(
+    (await loadConfig({ ...baseEnv, INGEST_MAX_UPLOAD_MB: "100" }))
+      .ingestMaxUploadMb,
+    100,
+  );
   assert.ok(!("ingestTimeoutMs" in c));
   // Legacy timeout values no longer configure or limit ingest jobs.
   await loadConfig({ ...baseEnv, INGEST_TIMEOUT_MS: "0" });
@@ -195,7 +200,7 @@ test("ingest configuration defaults, validation and availability", async () => {
     /INGEST_VALIDATE/,
   );
   await assert.rejects(
-    loadConfig({ ...baseEnv, INGEST_MAX_UPLOAD_MB: "99" }),
+    loadConfig({ ...baseEnv, INGEST_MAX_UPLOAD_MB: "101" }),
     /INGEST_MAX_UPLOAD_MB/,
   );
   await assert.rejects(
@@ -204,7 +209,7 @@ test("ingest configuration defaults, validation and availability", async () => {
   );
   assert.deepEqual(publicConfig(c).ingest, {
     available: true,
-    maxUploadMb: 2,
+    maxUploadMb: 20,
     urlSupported: true,
   });
 });
@@ -580,7 +585,7 @@ test("readIngestInput handles JSON url and multipart file bodies", async () => {
       c,
       checkWiki,
     ),
-    /\.md/,
+    (error: unknown) => (error as { code?: string }).code === "upload_corrupt",
   );
 });
 test("IngestStore takes a job from running to preview and apply", async () => {
@@ -761,7 +766,7 @@ test("ingest HTTP API serves start, preview, apply and cancel", async () => {
       init: {
         method?: string;
         json?: unknown;
-        file?: { name: string; body: string };
+        file?: { name: string; body: string | Uint8Array };
       } = {},
     ) =>
       new Promise<{ status: number; body: () => Promise<any> }>(
@@ -770,24 +775,28 @@ test("ingest HTTP API serves start, preview, apply and cancel", async () => {
           const headers: Record<string, string> = {
             host: "127.0.0.1:3002",
           };
-          let body: string | undefined;
+          let body: string | Buffer | undefined;
           if (init.json !== undefined) {
             body = JSON.stringify(init.json);
             headers["content-type"] = "application/json";
           } else if (init.file) {
-            body = [
-              `--${boundary}`,
-              'Content-Disposition: form-data; name="wikiId"',
-              "",
-              "default",
-              `--${boundary}`,
-              `Content-Disposition: form-data; name="file"; filename="${init.file.name}"`,
-              "Content-Type: text/markdown",
-              "",
-              init.file.body,
-              `--${boundary}--`,
-              "",
-            ].join("\r\n");
+            body = Buffer.concat([
+              Buffer.from(
+                [
+                  `--${boundary}`,
+                  'Content-Disposition: form-data; name="wikiId"',
+                  "",
+                  "default",
+                  `--${boundary}`,
+                  `Content-Disposition: form-data; name="file"; filename="${init.file.name}"`,
+                  "Content-Type: application/octet-stream",
+                  "",
+                  "",
+                ].join("\r\n"),
+              ),
+              Buffer.from(init.file.body),
+              Buffer.from(`\r\n--${boundary}--\r\n`),
+            ]);
             headers["content-type"] =
               `multipart/form-data; boundary=${boundary}`;
           }
@@ -860,6 +869,39 @@ test("ingest HTTP API serves start, preview, apply and cancel", async () => {
       (await hit(`/api/ingest/${uploaded.jobId}`, { method: "DELETE" })).status,
       204,
     );
+    const { docx, pptx, pdf } = await import("./fixtures/ingest-documents.js");
+    for (const [name, bytes] of [
+      ["sample.docx", docx()],
+      ["sample.pptx", pptx()],
+      ["sample.pdf", pdf()],
+    ] as const) {
+      const response = await hit("/api/ingest", {
+        file: { name, body: bytes },
+      });
+      assert.equal(response.status, 202);
+      const { jobId: documentId } = await response.body();
+      let documentPreview;
+      for (let i = 0; i < 500; i++) {
+        const response = await hit(`/api/ingest/${documentId}/preview`);
+        if (response.status === 200) {
+          documentPreview = await response.body();
+          break;
+        }
+        await new Promise((r) => setTimeout(r, 10));
+      }
+      assert.ok(documentPreview);
+      const raw = documentPreview.changes.find((ch: { path: string }) =>
+        ch.path.startsWith("raw/uploads/"),
+      );
+      assert.ok(raw?.path.endsWith("-sample.md"));
+      assert.ok(!raw.path.endsWith(name));
+      assert.match(raw.diff, new RegExp(name));
+      assert.equal(
+        (await hit(`/api/ingest/${documentId}`, { method: "DELETE" })).status,
+        204,
+      );
+      assert.deepEqual(await testReaddir(path.join(root, "raw")), ["src"]);
+    }
     assert.equal(
       (await hit("/api/ingest", { file: { name: "a.pdf", body: "x" } })).status,
       400,

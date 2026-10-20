@@ -9,6 +9,7 @@
 ```sh
 npm ci
 npm test                  # 核心单测，AI 可执行
+npm run test:ingest:web   # 用户执行：摄入 HTTP/API 集成
 npm run test:web          # 用户执行：HTTP/API、会话与双协议端到端
 npm run test:client       # 用户执行：Markdown 安全与 React 交互
 npm run build            # 用户执行：前后端类型检查及生产构建
@@ -141,7 +142,7 @@ npm run preview:fixture
 | ING-03 | ING-02 确认应用后，运行 `git -C <WIKI_ROOT> diff` 并回到对话查询新知识 | 产物与预览一致（只新增/修改，不删除）；新知识可被检索且引用可打开；`python3 ../skills/wiki-lint/scripts/check_evidence.py <WIKI_ROOT> --strict` 无证据错误 |
 | ING-04 | 摄入运行中点「取消摄入」；预览页点「丢弃」 | 任务立即终止/预览被丢弃；前后 `git -C <WIKI_ROOT> status` 无任何变化（真实库零污染） |
 | ING-05 | 设置 `INGEST_ENABLED=false`（或 `LLM_API=openai-completions`）重启 | 顶栏无摄入按钮；`POST /api/ingest` 返回 503；查询功能不受影响 |
-| ING-06 | 上传超限或 .pdf 文件；摄入运行中再次提交；预览后手动修改真实库再点确认 | 分别返回 413/400、409 busy、409 conflict（提示重新摄入） |
+| ING-06 | 上传超限或 .doc/.ppt 文件；摄入运行中再次提交；预览后手动修改真实库再点确认 | 分别返回 413/400、409 busy、409 conflict（提示重新摄入） |
 | ING-07 | 重复上传相同内容的文件；再次摄入同一 URL | 前者被拒（提示内容与已有 raw 一致）；后者显示"将作为新版本并存"提示，产物中新旧 raw 并存、旧文件未被改动 |
 | ING-08 | 使用无效测试 API key 提交摄入，查看后端终端日志和浏览器 Network 中的 `/api/ingest/:id/events` | 前端显示失败；后端输出 `ingest_started` 和 `ingest_failed`，后者含对应 jobId、phase、model、elapsedMs、原始异常 detail 和 SDK stderr 摘要；日志中的 API key 被替换为 `[REDACTED]`，原始堆栈不发给前端 |
 | ING-09 | 同一用户完成 `codex login` 的 ChatGPT 登录；设置 `INGEST_ENGINE=codex`，执行 `npm run build` 后运行 `npm run dev` 并刷新页面，上传一份尚未摄入的 .md 文件 | URL 输入禁用并显示仅支持文件；查询协议为 openai-completions 时仍有文件摄入入口；日志 engine 为 codex，默认模型为 CLI default；任务进入预览，确认前真实库无变化，确认后可查询新知识 |
@@ -167,5 +168,24 @@ Codex 适配器核心单测：`node --import tsx --test tests/ingest-codex.test.
 - 构建：规则补充前通过；后续拆分前端组件和补充测试后的最终构建待用户执行。
 - React 交互、桌面/窄屏视觉与浏览器验收：待用户执行。此前浏览器控制工具连接超时，没有取得视觉验收结果。
 - 语言与双语验收（LANG-01..07）：待用户执行；`test:client` 自动用例随本次双语改造新增。
-- 摄入验收（ING-01..07）：待用户执行。核心单测（diff、staging 生命周期、SHA 预检、上传校验、任务状态机、API）已由 AI 随本次改造新增并全部通过；真实 Claude Agent SDK + GLM 端点冒烟（ING-02）未验证。
+- 摄入验收（ING-01..07）：待用户执行。核心单测（diff、staging 生命周期、SHA 预检、上传校验、任务状态机）已由 AI 随本次改造新增并全部通过；真实 Claude Agent SDK + GLM 端点冒烟（ING-02）未验证。
 - Anthropic / OpenAI 真实模型连接与答案质量：均未验证；没有读取或复用 mobi 凭证。
+
+## 多格式摄入验收（用户执行）
+
+在 `web/` 执行 `npm run test:ingest:web`、`npm run test:web`、`npm run test:client` 和 `npm run build`。构建后分别通过开发模式与 `npm start` 验证上传，确保两种模式的解析 worker 都能启动。
+
+| 编号 | 操作 | 预期结果 |
+| --- | --- | --- |
+| DOC-01 | 切换中英文并打开摄入弹窗 | 文件选择器接受 .md/.txt/.docx/.pdf/.pptx；默认提示 20 MB 和扫描件先做 OCR；Codex 模式仍支持全部上传格式 |
+| DOC-02 | 分别上传含中文标题、正文、列表和表格的 DOCX、文本 PDF、PPTX | 进入 diff 预览，内容可读；PDF 保留页码，PPT 保持实际页序；确认前真实库不变 |
+| DOC-03 | 确认 DOC-02 后检查真实库，再次上传相同文件 | raw/uploads 下只保存 Markdown，来源保留原文件名，没有二进制原件；相同提取内容返回 409 duplicate |
+| DOC-04 | 上传扫描 PDF、加密 PDF、损坏文件、扩展名伪装文件和 .doc/.ppt | 分别提示先做 OCR、移除密码、文件不可解析或格式不支持；不创建摄入任务或修改真实库 |
+| DOC-05 | 上传超过 20 MB 文件，或配置 INGEST_MAX_UPLOAD_MB=100 后重试；配置 101 后启动 | 超限返回 413；100 可生效且界面同步；101 配置被拒绝；multipart 请求体开销计入上限 |
+| DOC-06 | 用新文档分别验证运行中取消及预览丢弃，并在 Claude/Codex 下重复 | 沿用原有取消、清理和预览机制，真实库无变化；两个引擎都只处理提取后的文本 |
+| DOC-07 | 制造解析超时或超资源文件，随后上传正常文件 | 显示拆分后重试提示，无残留解析 worker；后续正常上传成功 |
+| DOC-08 | 上传文件本身小于 20 MB、但转换后 raw 含来源头超过 8 MB 的文本文件 | 返回 upload_limit，提示拆分；不会写入无法被阅读接口打开的资料 |
+| DOC-09 | 提交后在上传/解析等待期间点击右上角关闭并尝试修改 URL、文件或清除选择 | 关闭、取消和输入均禁用；请求失败后恢复操作，请求成功后进入运行状态，不产生脱离弹窗的摄入任务 |
+| DOC-10 | 上传解析较慢的文档，并在请求返回前停止服务 | 解析 worker 被取消，关闭后的 store 不启动新摄入任务；服务可退出，真实库无改动 |
+
+`npm test` 仅执行核心单测并排除现有 ingest HTTP API 测试；该集成测试移至 `npm run test:ingest:web`，由用户执行。新解析单测包含 DOCX/PPTX 的真实 OOXML 容器、两页文本 PDF、中文 CJK PDF、图片扫描 PDF、空页及密码 PDF。中文 CJK PDF 由 ReportLab 的 STSong-Light 字体生成，用于验证本地 CMap 加载。密码 PDF 是 pypdf 生成的空白页，密码为 `test-only-password`，仅作拒绝加密文件的测试样例。
