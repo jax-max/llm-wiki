@@ -48,8 +48,7 @@ or ask “抽奖活动有哪些状态？” and follow up with “这个结论�
 The demo lifecycle is an explicit teaching supplement; answers should identify
 that source rather than attributing it to the original technical article.
 
-The app runs on this computer and reads the wiki without editing it. Knowledge
-ingestion and maintenance continue through the existing Skills. Model requests
+The app runs on this computer. Chat only reads the Wiki; **Add source** compiles URLs or uploaded files into a preview and writes changes after manual confirmation. Maintenance can also continue through the existing Skills. Model requests
 send the question and selected evidence to the configured provider. See the
 [Web guide](web/README.md) for configuration, limits and API details.
 

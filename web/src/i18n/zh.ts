@@ -1,6 +1,24 @@
 import type { Copy } from "./types";
 
 const zh: Copy = {
+  wiki: {
+    switch: "切换 Wiki",
+    current: "当前 Wiki",
+    path: "目录路径",
+    go: "跳转",
+    parent: "上级目录",
+    hidden: "显示隐藏目录",
+    select: "使用此目录",
+    close: "关闭",
+    loading: "正在加载…",
+    empty: "没有子目录",
+    hint: "选择包含 wiki/ 和 raw/ 的项目根目录。选择将被记住，重启后继续使用。",
+    failed:
+      "操作失败，请检查目录是否存在、可读且包含 wiki/schema.md、wiki/index.md、wiki/domains/ 和 raw/。",
+    busy: "请先完成或取消问答、摄入任务及未确认预览，再切换 Wiki。",
+    stale: "Wiki 已在其他页面切换，请刷新页面。",
+    storage: "无法保存选择，原 Wiki 保持不变。",
+  },
   appTitle: "Wiki 对话",
   header: {
     subtitle: "知识库问答",

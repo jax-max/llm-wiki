@@ -1,6 +1,24 @@
 import type { Copy } from "./types";
 
 const en: Copy = {
+  wiki: {
+    switch: "Switch Wiki",
+    current: "Current Wiki",
+    path: "Directory path",
+    go: "Go",
+    parent: "Parent directory",
+    hidden: "Show hidden directories",
+    select: "Use this directory",
+    close: "Close",
+    loading: "Loading…",
+    empty: "No subdirectories",
+    hint: "Choose a project root containing wiki/ and raw/. Your selection will be restored after restart.",
+    failed:
+      "Cannot complete the operation. Check that the directory is readable and contains wiki/schema.md, wiki/index.md, wiki/domains/ and raw/.",
+    busy: "Finish or cancel queries, ingestion tasks and pending previews before switching Wiki.",
+    stale: "Wiki was switched in another page. Please refresh.",
+    storage: "Cannot save the selection. The current Wiki is unchanged.",
+  },
   appTitle: "Wiki Chat",
   header: {
     subtitle: "Knowledge base Q&A",

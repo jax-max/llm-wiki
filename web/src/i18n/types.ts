@@ -4,6 +4,23 @@ export const STORAGE_KEY = "llm-wiki-web.locale";
 
 // 词典结构由本接口在编译期锁死：zh.ts / en.ts 任何一侧缺键或多键都会让 tsc 报错。
 export interface Copy {
+  wiki: {
+    switch: string;
+    current: string;
+    path: string;
+    go: string;
+    parent: string;
+    hidden: string;
+    select: string;
+    close: string;
+    loading: string;
+    empty: string;
+    hint: string;
+    failed: string;
+    busy: string;
+    stale: string;
+    storage: string;
+  };
   appTitle: string;
   header: { subtitle: string; newChat: string };
   language: { switch: string };

@@ -7,6 +7,7 @@ import {
   symlink,
   rm,
   readFile,
+  realpath,
 } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -94,7 +95,7 @@ test("catalog supports an empty knowledge base", async () => {
 test("configuration validation, relative root and public secret isolation", async () => {
   assert.equal(config.root, path.resolve(webRoot, "../examples/demo-wiki"));
   assert.ok(!JSON.stringify(publicConfig(config)).includes("test-secret"));
-  assert.ok(!JSON.stringify(publicConfig(config)).includes(config.root));
+  assert.equal(publicConfig(config).root, config.root);
   for (const key of ["LLM_API_KEY", "LLM_MODEL", "LLM_BASE_URL"])
     await assert.rejects(loadConfig({ ...env, [key]: "" }), new RegExp(key));
   await assert.rejects(loadConfig({ ...env, LLM_API: "invalid" }), /LLM_API/);
@@ -387,4 +388,159 @@ test("fixed port configuration validates both listeners and rejects conflicts", 
     () => loadPorts({ PORT: "3002", WEB_PORT: "3002" }),
     /不能使用相同端口/,
   );
+});
+
+// Core filesystem and switch coordination tests; no HTTP server or client.
+test("directory selection validates roots, canonicalizes paths and lists only directories", async () => {
+  const { browseDirectories, validateWikiRoot } = await import(
+    "../server/workspace.js"
+  );
+  const { chmod } = await import("node:fs/promises");
+  const base = await realpath(
+    await mkdtemp(path.join(os.tmpdir(), "wiki-select-")),
+  );
+  try {
+    const root = path.join(base, "中文 Wiki");
+    await mkdir(path.join(root, "wiki/domains"), { recursive: true });
+    await mkdir(path.join(root, "raw"));
+    await writeFile(path.join(root, "wiki/schema.md"), "# Schema");
+    await writeFile(path.join(root, "wiki/index.md"), "# Index");
+    await mkdir(path.join(base, ".hidden"));
+    await writeFile(path.join(base, "secret.txt"), "must not be listed");
+    await symlink(root, path.join(base, "alias"));
+    assert.equal(await validateWikiRoot(path.join(base, "alias")), root);
+    assert.deepEqual(
+      (await browseDirectories(base)).directories.map((d) => d.name),
+      ["中文 Wiki"],
+    );
+    assert.equal((await browseDirectories(base, true)).directories.length, 2);
+    assert.equal((await browseDirectories(path.parse(base).root)).parent, null);
+    await assert.rejects(validateWikiRoot(base), /wiki\/schema.md/);
+    await assert.rejects(validateWikiRoot("relative"), /绝对/);
+    await assert.rejects(
+      browseDirectories(path.join(base, "missing")),
+      /无法访问/,
+    );
+    await assert.rejects(
+      browseDirectories(path.join(base, "secret.txt")),
+      /无法访问/,
+    );
+    if (process.getuid?.() !== 0) {
+      const denied = path.join(base, ".hidden");
+      await chmod(denied, 0);
+      try {
+        await assert.rejects(browseDirectories(denied), /无法访问/);
+      } finally {
+        await chmod(denied, 0o700);
+      }
+    }
+    await rm(path.join(root, "raw"), { recursive: true });
+    await assert.rejects(validateWikiRoot(root), /raw/);
+  } finally {
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("switching persists only valid roots, blocks concurrent work and preserves state on failure", async () => {
+  const { WorkspaceSwitch, restoreWikiRoot, saveWikiRoot } = await import(
+    "../server/workspace.js"
+  );
+  const base = await realpath(
+    await mkdtemp(path.join(os.tmpdir(), "wiki-state-")),
+  );
+  try {
+    const root = path.join(base, "Selected Wiki");
+    await mkdir(path.join(root, "wiki/domains"), { recursive: true });
+    await mkdir(path.join(root, "raw"));
+    await writeFile(path.join(root, "wiki/schema.md"), "# Schema");
+    await writeFile(path.join(root, "wiki/index.md"), "# Index");
+    const file = path.join(base, "state/selection.json");
+    assert.equal(await restoreWikiRoot(file), undefined);
+    const c = { ...config };
+    let busy = true;
+    let changes = 0;
+    const selection = new WorkspaceSwitch(
+      c,
+      file,
+      () => busy,
+      () => changes++,
+    );
+    await assert.rejects(selection.select(root, c.wikiId), /先完成/);
+    busy = false;
+    const release = selection.acquire();
+    await assert.rejects(selection.select(root, c.wikiId), /先完成/);
+    release();
+    release();
+    const oldId = c.wikiId;
+    const pending = selection.select(root, oldId);
+    assert.throws(() => selection.acquire(), /切换/);
+    await assert.rejects(selection.select(root, oldId), /先完成/);
+    await pending;
+    assert.equal(c.root, root);
+    assert.equal(c.name, "Selected Wiki");
+    assert.notEqual(c.wikiId, oldId);
+    assert.equal(changes, 1);
+    assert.equal(await restoreWikiRoot(file), root);
+    await assert.rejects(selection.select(config.root, oldId), /刷新/);
+    await selection.select(root, c.wikiId);
+    assert.equal(changes, 1);
+    await assert.rejects(selection.select(base, c.wikiId));
+    assert.equal(c.root, root);
+    await writeFile(file, "broken json");
+    assert.equal(await restoreWikiRoot(file), undefined);
+    await saveWikiRoot(file, path.join(base, "gone"));
+    assert.equal(await restoreWikiRoot(file), undefined);
+    const obstructed = path.join(base, "obstructed");
+    await writeFile(obstructed, "file, not directory");
+    const failing = new WorkspaceSwitch(
+      c,
+      path.join(obstructed, "selection.json"),
+      () => false,
+      () => changes++,
+    );
+    await assert.rejects(failing.select(config.root, c.wikiId), /无法保存/);
+    assert.equal(c.root, root);
+    assert.equal(changes, 1);
+    const unlock = failing.acquire();
+    unlock();
+    const stopping = new WorkspaceSwitch(
+      c,
+      file,
+      () => false,
+      () => changes++,
+    );
+    const interrupted = stopping.select(config.root, c.wikiId);
+    stopping.close();
+    await assert.rejects(interrupted, /服务停止/);
+    assert.throws(() => stopping.acquire(), /服务停止/);
+    assert.equal(c.root, root);
+    assert.equal(changes, 1);
+  } finally {
+    await rm(base, { recursive: true, force: true });
+  }
+});
+
+test("reader and catalog preserve literal percent/hash filenames without decoding them twice", async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), "wiki-literal-paths-"));
+  try {
+    await mkdir(path.join(root, "raw"));
+    for (const name of [
+      "100%.md",
+      "a#b.md",
+      "literal%20space.md",
+      "实际 space.md",
+    ])
+      await writeFile(path.join(root, "raw", name), `# ${name}\nbody`);
+    const wiki = new Wiki(root);
+    for (const name of ["100%.md", "a#b.md", "literal%20space.md"])
+      assert.equal((await wiki.read(`raw/${name}`)).path, `raw/${name}`);
+    assert.equal(
+      (await wiki.read("raw/%E5%AE%9E%E9%99%85%20space.md#fragment")).path,
+      "raw/实际 space.md",
+    );
+    assert.equal((await wiki.catalog()).pages.length, 4);
+    await assert.rejects(wiki.read("raw/%2e%2e/%2e%2e/outside.md"));
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
 });

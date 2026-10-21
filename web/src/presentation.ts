@@ -45,6 +45,13 @@ export function errorMessage(
   context: "chat" | "source" = "chat",
 ): string {
   const { errors } = dictionaries[locale];
+  if (
+    error &&
+    typeof error === "object" &&
+    "code" in error &&
+    error.code === "wiki"
+  )
+    return dictionaries[locale].wiki.stale;
   if (context === "source") return errors.source;
   const code =
     error && typeof error === "object" && "code" in error

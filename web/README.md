@@ -149,3 +149,13 @@ Following [CLAUDE.md](../CLAUDE.md), AI runs only `npm test` (core unit tests). 
 ## License
 
 MIT — see the repository [LICENSE](../LICENSE). The web app is part of the llm-wiki repository and shares its license.
+
+### Choose a Wiki directory
+
+Click **Switch Wiki** in the header to browse folders, move up, enter an absolute path, or show hidden directories. Select an existing project root containing `wiki/schema.md`, `wiki/index.md`, `wiki/domains/`, and `raw/`, then choose **Use this directory**. This does not initialize new Wikis. The list contains actual subdirectories; a symlink can be entered by absolute path and is resolved to its real path.
+
+Switching takes effect immediately and clears the reader, navigation history, catalog filter, conversation, input, and recent update markers. The directory name becomes the Wiki name. Finish or cancel queries, uploads, parsing, ingestion, and pending previews first; apply or discard pending previews before switching. Reopening **Add source** restores unfinished tasks, including after a page refresh. Failed cancellation or discard keeps the task visible and reports an error. Old tabs receive a refresh instruction when their Wiki identifier becomes stale. All tabs share one active Wiki, and directories belong to the server's computer.
+
+The last choice is saved atomically in Git-ignored `web/.local/wiki-selection.json` and takes precedence over `WIKI_ROOT` on restart. Invalid or unavailable saved roots produce a warning and fall back to `WIKI_ROOT`, or the existing demo default. `WIKI_NAME` applies before any saved choice; restored selections use the directory name. To return to environment configuration, stop the service and delete the selection file. A failed save leaves the current Wiki unchanged.
+
+Local API: `GET /api/config` now includes `root`. `GET /api/directories?path=<absolute-path>&hidden=true` returns the canonical path, parent, and subdirectories. `POST /api/wiki/select` accepts `{ path, wikiId }` and returns the updated public configuration. Switching changes the identifier; old identifiers receive a `wiki` error. Existing local Host and Origin checks apply.

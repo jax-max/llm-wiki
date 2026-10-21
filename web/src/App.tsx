@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useLocale } from "./i18n/useLocale";
 import IngestDialog from "./ingest/IngestDialog";
 import Catalog from "./Catalog";
+import WikiSelector from "./WikiSelector";
 import {
   pageDomain,
   pageType,
@@ -12,7 +13,8 @@ import { useDocumentReader } from "./useDocumentReader";
 import { renderMarkdown, sourceLink } from "./markdown";
 import { errorMessage, progressMessage } from "./presentation";
 import { readSSE } from "./sse";
-type Config = {
+export type Config = {
+  root?: string;
   wikiId: string;
   name: string;
   ingest?: { available: boolean; maxUploadMb: number; urlSupported?: boolean };
@@ -24,6 +26,15 @@ type Turn = {
   error?: string;
 };
 export default function App() {
+  const [generation, setGeneration] = useState(0);
+  return (
+    <Workspace
+      key={generation}
+      onSwitch={() => setGeneration((value) => value + 1)}
+    />
+  );
+}
+function Workspace({ onSwitch }: { onSwitch: () => void }) {
   const { locale, setLocale, t } = useLocale();
   const [config, setConfig] = useState<Config>();
   const [fatal, setFatal] = useState<"connect" | null>(null);
@@ -35,12 +46,14 @@ export default function App() {
   const knowledge = useDocumentReader(config?.wikiId, locale);
   const knowledgeScroll = useRef<HTMLElement>(null);
   const [ingestOpen, setIngestOpen] = useState(false);
+  const [selectorOpen, setSelectorOpen] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(
     () => window.innerWidth >= 1280,
   );
   const [catalogPages, setCatalogPages] = useState<CatalogPage[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogFailed, setCatalogFailed] = useState(false);
+  const [wikiChanged, setWikiChanged] = useState(false);
   const [updates, setUpdates] = useState<AppliedChange[]>([]);
   const [revealUpdates, setRevealUpdates] = useState(0);
   const catalogRequest = useRef(0);
@@ -94,7 +107,12 @@ export default function App() {
       const response = await fetch(
         "/api/catalog?" + new URLSearchParams({ wikiId: config.wikiId }),
       );
-      if (!response.ok) throw new Error("catalog");
+      if (!response.ok) {
+        const error = await response.json();
+        if (token === catalogRequest.current && error.code === "wiki")
+          setWikiChanged(true);
+        throw new Error("catalog");
+      }
       const data = await response.json();
       if (!Array.isArray(data.pages)) throw new Error("catalog");
       if (token === catalogRequest.current) setCatalogPages(data.pages);
@@ -215,6 +233,18 @@ export default function App() {
   const ingest = config?.ingest;
   return (
     <div className="app-shell">
+      {selectorOpen && config && (
+        <WikiSelector
+          config={config}
+          onClose={() => setSelectorOpen(false)}
+          onSelected={onSwitch}
+        />
+      )}
+      {wikiChanged && (
+        <p role="alert" className="error">
+          {t.wiki.stale}
+        </p>
+      )}
       <header>
         <div className="brand">
           <span className="logo">W</span>
@@ -224,6 +254,11 @@ export default function App() {
           </div>
         </div>
         <div className="header-actions">
+          {config && (
+            <button onClick={() => setSelectorOpen(true)}>
+              {t.wiki.switch}
+            </button>
+          )}
           {ingest?.available && (
             <button onClick={() => setIngestOpen(true)}>
               {t.ingest.openButton}

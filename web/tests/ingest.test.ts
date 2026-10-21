@@ -635,7 +635,27 @@ test("IngestStore takes a job from running to preview and apply", async () => {
         ["wiki/log.md", "modified"],
       ],
     );
-    const applied = await store.apply(job.id);
+    assert.equal(store.blocksSwitch, true);
+    assert.equal(store.pending()?.id, job.id);
+    const applying = store.apply(job.id);
+    const duringApply = store.start({
+      kind: "url",
+      url: "https://example.com/while-applying",
+    });
+    assert.equal(store.cancel(job.id), false);
+    store.sweep(Date.now() + 31 * 60_000);
+    assert.equal(store.get(job.id)!.status, "preview");
+    await assert.rejects(
+      store.apply(job.id),
+      (e: unknown) => (e as { code?: string }).code === "busy",
+    );
+    await assert.rejects(
+      duringApply,
+      (e: unknown) => (e as { code?: string }).code === "busy",
+    );
+    const applied = await applying;
+    assert.equal(store.pending(), undefined);
+    assert.equal(store.blocksSwitch, false);
     assert.deepEqual(applied.sort(), ["raw/src/new.md", "wiki/log.md"]);
     assert.equal(store.get(job.id)!.status, "applied");
     assert.match(
@@ -681,6 +701,20 @@ test("IngestStore enforces single-flight, duplicates, cancel and disabled", asyn
     for (let i = 0; i < 500 && store.get(first.id)!.status === "running"; i++)
       await new Promise((r) => setTimeout(r, 10));
     assert.equal(store.get(first.id)!.status, "preview");
+    const second = await store.start({
+      kind: "url",
+      url: "https://example.com/next",
+    });
+    await assert.rejects(
+      store.apply(first.id),
+      (e: unknown) => (e as { code?: string }).code === "busy",
+    );
+    for (let i = 0; i < 500 && store.get(second.id)!.status === "running"; i++)
+      await new Promise((r) => setTimeout(r, 10));
+    assert.equal(store.get(second.id)!.status, "preview");
+    store.cancel(first.id);
+    store.cancel(second.id);
+    assert.equal(store.pending(), undefined);
     store.close();
     // Identical body content is rejected as a duplicate.
     const store2 = new IngestStore(c, gated as never);
@@ -696,9 +730,11 @@ test("IngestStore enforces single-flight, duplicates, cancel and disabled", asyn
       url: "https://example.com/three",
     });
     assert.ok(store3.cancel(job3.id));
+    assert.equal(store3.blocksSwitch, true);
     for (let i = 0; i < 500 && store3.get(job3.id)!.status === "running"; i++)
       await new Promise((r) => setTimeout(r, 10));
     assert.equal(store3.get(job3.id)!.status, "cancelled");
+    assert.equal(store3.blocksSwitch, false);
     store3.close();
     // Disabled config rejects up front.
     const store4 = new IngestStore(
@@ -1077,4 +1113,125 @@ test("readIngestInput tolerates uppercase Content-Type variants", async () => {
     () => {},
   );
   assert.equal(input.kind, "file");
+});
+
+test("staging excludes symbolic links and refuses a changed copy baseline", async () => {
+  const { symlink, readFile } = await import("node:fs/promises");
+  const root = await makeWiki();
+  const outside = await mkdtemp(path.join(os.tmpdir(), "wiki-outside-"));
+  let staging: string | undefined;
+  try {
+    await writeFile(
+      path.join(outside, "private.md"),
+      "private external evidence",
+    );
+    await symlink(outside, path.join(root, "wiki/domains/external"));
+    await symlink(
+      path.join(outside, "private.md"),
+      path.join(root, "raw/external.md"),
+    );
+    staging = await createStaging(root);
+    await assert.rejects(stat(path.join(staging, "wiki/domains/external")));
+    await assert.rejects(stat(path.join(staging, "raw/external.md")));
+    assert.deepEqual(await digestTree(staging), await digestTree(root));
+    const baseline = await digestTree(root);
+    await writeFile(path.join(root, "wiki/index.md"), "# external revision");
+    await assert.rejects(
+      createStaging(root, baseline),
+      (e: unknown) => (e as { code: string }).code === "conflict",
+    );
+    assert.equal(
+      await readFile(path.join(root, "wiki/index.md"), "utf8"),
+      "# external revision",
+    );
+  } finally {
+    if (staging) await cleanupStaging(staging);
+    await rm(root, { recursive: true, force: true });
+    await rm(outside, { recursive: true, force: true });
+  }
+});
+
+test("apply preflights source files and rejects traversal and symbolic link writes", async () => {
+  const { symlink, readFile } = await import("node:fs/promises");
+  const root = await makeWiki();
+  const outside = await mkdtemp(path.join(os.tmpdir(), "wiki-write-outside-"));
+  const staging = await createStaging(root);
+  const baseline = await digestTree(root);
+  const change = (
+    p: string,
+  ): import("../server/ingest-staging.js").FileChange => ({
+    path: p,
+    change: "added",
+    additions: 1,
+    deletions: 0,
+    diff: "+ added",
+  });
+  try {
+    await mkdir(path.join(staging, "wiki/linked"));
+    await writeFile(path.join(staging, "wiki/linked/new.md"), "# new");
+    await symlink(outside, path.join(root, "wiki/linked"));
+    await assert.rejects(
+      applyChanges(root, staging, [change("wiki/linked/new.md")], baseline),
+    );
+    await assert.rejects(stat(path.join(outside, "new.md")));
+    await assert.rejects(
+      applyChanges(root, staging, [change("wiki/../../outside.md")], baseline),
+    );
+    await symlink(
+      path.join(outside, "private.md"),
+      path.join(staging, "wiki/symlink.md"),
+    );
+    await assert.rejects(
+      applyChanges(root, staging, [change("wiki/symlink.md")], baseline),
+    );
+    await writeFile(path.join(staging, "wiki/index.md"), "# new index");
+    const prior = await readFile(path.join(root, "wiki/index.md"), "utf8");
+    await assert.rejects(
+      applyChanges(
+        root,
+        staging,
+        [
+          { ...change("wiki/index.md"), change: "modified" },
+          change("wiki/missing.md"),
+        ],
+        baseline,
+      ),
+    );
+    assert.equal(
+      await readFile(path.join(root, "wiki/index.md"), "utf8"),
+      prior,
+    );
+  } finally {
+    await cleanupStaging(staging);
+    await rm(root, { recursive: true, force: true });
+    await rm(outside, { recursive: true, force: true });
+  }
+});
+
+test("uploaded percent/hash filenames remain readable and digest commands cannot escape their fence", async () => {
+  const { rawPathForUpload } = await import("../server/ingest-upload.js");
+  const { documentPath } = await import("../server/wiki.js");
+  const { fence } = await import("../server/ingest-sdk.js");
+  const p = await rawPathForUpload(
+    "完成100% #报告.md",
+    "2026-10-21",
+    () => false,
+  );
+  assert.ok(!/[%#]/.test(p));
+  assert.equal(documentPath(p), p);
+  const cwd = "/tmp/wiki-stage";
+  for (const command of [
+    "shasum -a 256 raw/a.md\ntouch /tmp/outside",
+    "sha256sum raw/a.md > /tmp/outside",
+    "sha256sum raw/a.md < /etc/passwd",
+    "sha256sum /etc/passwd",
+    "shasum -a 256 $(cat /etc/passwd)",
+    "sha256sum raw/a.md raw/b.md",
+  ])
+    assert.equal(fence("Bash", { command }, cwd).behavior, "deny", command);
+  for (const command of [
+    "sha256sum raw/a.md",
+    "shasum -a 256 'raw/中文 file.md'",
+  ])
+    assert.equal(fence("Bash", { command }, cwd).behavior, "allow", command);
 });

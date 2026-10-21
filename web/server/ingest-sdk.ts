@@ -123,11 +123,23 @@ export const fence = (
     return { behavior: "deny", message: "写入目标必须位于摄入工作区内" };
   if (toolName === "Bash") {
     const command = String(toolInput.command || "");
-    if (!/^\s*(sha256sum|shasum)\b/.test(command))
-      return { behavior: "deny", message: "Bash 仅允许计算 SHA-256 校验和" };
-    // A digest command needs no chaining or substitution — reject both.
-    if (/[;&|`]|\$\(/.test(command))
-      return { behavior: "deny", message: "Bash 不允许命令链接或替换" };
+    // Permit a single digest invocation and one literal local filename only.
+    // Newlines and redirections are shell operators too, even without ; or &&.
+    const match = command.match(
+      /^\s*(?:sha256sum|shasum\s+-a\s+256)\s+(?:--\s+)?(?:"([^"\r\n]+)"|'([^'\r\n]+)'|([^\s'"]+))\s*$/,
+    );
+    const file = match && (match[1] || match[2] || match[3]);
+    if (
+      !file ||
+      /[\u0000-\u001f;&|`<>$()\\]/.test(command) ||
+      file.startsWith("-") ||
+      !inside(file)
+    )
+      return {
+        behavior: "deny",
+        message:
+          "Bash 仅允许对工作区内单个文件计算 SHA-256，不允许命令组合、重定向或替换",
+      };
   }
   if (toolName === "WebFetch") {
     try {

@@ -63,6 +63,7 @@ const { app, close } = createApp(
   { ...config, root: fixtureRoot, name: "demo-wiki · 本地测试替身" },
   fakeFactory({ answer, delay: 180 }),
   ingestAgent as never,
+  path.join(fixtureRoot, ".local/wiki-selection.json"),
 );
 const server = app.listen(config.port, "127.0.0.1", () =>
   console.info(`UI fixture: http://127.0.0.1:${config.port}`),

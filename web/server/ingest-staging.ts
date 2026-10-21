@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
 import {
   cp,
+  lstat,
+  realpath,
   mkdtemp,
   rm,
   readdir,
@@ -14,7 +16,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import { existsSync } from "node:fs";
 import type { Dirent } from "node:fs";
-import { QueryError } from "./wiki.js";
+import { QueryError, documentPath, MAX_DOCUMENT_BYTES } from "./wiki.js";
 import { diffLines, formatDiff } from "./ingest-diff.js";
 const execFileAsync = promisify(execFile);
 export type FileChange = {
@@ -26,18 +28,33 @@ export type FileChange = {
 };
 const sha256 = (data: string | Buffer) =>
   createHash("sha256").update(data).digest("hex");
-export async function createStaging(root: string): Promise<string> {
+export async function createStaging(
+  root: string,
+  baseline?: Map<string, string>,
+): Promise<string> {
+  for (const top of ["wiki", "raw"]) {
+    if ((await lstat(path.join(root, top))).isSymbolicLink())
+      throw new QueryError("path", "摄入不支持符号链接的 wiki/raw 根目录");
+  }
+  const before = baseline ?? (await digestTree(root));
   const dir = await mkdtemp(path.join(tmpdir(), "wiki-ingest-"));
   try {
-    // dereference so the agent only ever sees plain files inside staging.
+    // Skip symbolic links rather than copying their external targets.
     await cp(path.join(root, "wiki"), path.join(dir, "wiki"), {
       recursive: true,
-      dereference: true,
+      filter: async (source) => !(await lstat(source)).isSymbolicLink(),
     });
     await cp(path.join(root, "raw"), path.join(dir, "raw"), {
       recursive: true,
-      dereference: true,
+      filter: async (source) => !(await lstat(source)).isSymbolicLink(),
     });
+    const copied = await digestTree(dir);
+    const current = await digestTree(root);
+    const matches = (tree: Map<string, string>) =>
+      tree.size === before.size &&
+      [...before].every(([p, sha]) => tree.get(p) === sha);
+    if (!matches(copied) || !matches(current))
+      throw new QueryError("conflict", "复制期间知识库被修改，请重新摄入", 409);
   } catch (error) {
     await cleanupStaging(dir);
     throw error;
@@ -59,8 +76,9 @@ export async function digestTree(root: string): Promise<Map<string, string>> {
       entries = await readdir(path.join(root, relative), {
         withFileTypes: true,
       });
-    } catch {
-      return;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+      throw error;
     }
     for (const entry of entries) {
       const p = relative + "/" + entry.name;
@@ -94,8 +112,9 @@ export async function scanSources(root: string): Promise<ExistingSources> {
       entries = await readdir(path.join(root, relative), {
         withFileTypes: true,
       });
-    } catch {
-      return;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+      throw error;
     }
     for (const entry of entries) {
       const p = relative + "/" + entry.name;
@@ -184,6 +203,37 @@ export async function collectChanges(
     else if (entry.isFile()) outside.push(entry.name);
   return { changes, deleted, outside, drifted: drifted.sort() };
 }
+// Validate every component: path.join alone normalizes away traversal, and a
+// lexical prefix cannot protect writes through existing symbolic directories.
+async function changeFile(root: string, relative: string, missing: boolean) {
+  try {
+    if (documentPath(relative) !== relative) throw new Error();
+  } catch {
+    throw new QueryError("path", "变更路径越界");
+  }
+  const base = await realpath(root);
+  const segments = relative.split("/");
+  let target = base;
+  for (let i = 0; i < segments.length; i++) {
+    target = path.join(target, segments[i]);
+    let info;
+    try {
+      info = await lstat(target);
+    } catch (error) {
+      if (missing && (error as NodeJS.ErrnoException).code === "ENOENT")
+        continue;
+      throw new QueryError("path", `变更文件不存在或不可访问：${relative}`);
+    }
+    if (
+      info.isSymbolicLink() ||
+      (i < segments.length - 1
+        ? !info.isDirectory()
+        : !info.isFile() || info.size > MAX_DOCUMENT_BYTES)
+    )
+      throw new QueryError("path", `变更文件不安全或超过 8 MB：${relative}`);
+  }
+  return target;
+}
 export async function applyChanges(
   root: string,
   staging: string,
@@ -191,14 +241,14 @@ export async function applyChanges(
   baseline: Map<string, string>,
 ): Promise<string[]> {
   const applied: string[] = [];
-  const current = await digestTree(root);
-  // Validate every change first so a conflict aborts before anything is
-  // written — a half-applied batch would break the preview promise.
+  // Preflight the complete batch, including all staging sources, before writing.
   for (const change of changes) {
-    if (!/^(wiki|raw)\/[^/].*\.(md|txt)$/i.test(change.path))
-      throw new QueryError("path", `变更路径越界：${change.path}`);
+    await changeFile(root, change.path, true);
+    await changeFile(staging, change.path, false);
+  }
+  const current = await digestTree(root);
+  for (const change of changes) {
     const existing = current.get(change.path);
-    // Guard against edits made to the real library between preview and apply.
     if (change.change === "modified" && existing !== baseline.get(change.path))
       throw new QueryError(
         "conflict",
@@ -211,14 +261,12 @@ export async function applyChanges(
         `预览后知识库出现同名文件：${change.path}，请重新摄入`,
         409,
       );
-    const target = path.join(root, change.path);
-    if (path.resolve(target) !== target)
-      throw new QueryError("path", "变更路径越界");
   }
   for (const change of changes) {
-    const target = path.join(root, change.path);
+    const target = await changeFile(root, change.path, true);
+    const source = await changeFile(staging, change.path, false);
     await mkdir(path.dirname(target), { recursive: true });
-    await cp(path.join(staging, change.path), target);
+    await cp(source, target);
     applied.push(change.path);
   }
   return applied;

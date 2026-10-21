@@ -6,12 +6,26 @@ import type { IngestStore } from "./ingest.js";
 export function registerIngestRoutes(
   app: express.Express,
   c: Config,
-  store: IngestStore,
+  getStore: () => IngestStore,
   signal?: AbortSignal,
+  acquire: () => () => void = () => () => {},
 ) {
   const checkWiki = (id: unknown) => {
-    if (id !== c.wikiId) throw new QueryError("wiki", "知识库标识不匹配", 400);
+    if (id !== c.wikiId)
+      throw new QueryError("wiki", "Wiki 已切换，请刷新页面", 409);
   };
+  app.get("/api/ingest/pending", (req, res, next) => {
+    try {
+      checkWiki(req.query.wikiId);
+      const store = getStore();
+      const job = store.pending();
+      res
+        .set("Cache-Control", "no-store")
+        .json({ job: job ? store.previewData(job) : null });
+    } catch (error) {
+      next(error);
+    }
+  });
   // The global express.json only handles JSON; multipart bodies are buffered
   // here and parsed by undici inside readIngestInput.
   app.post(
@@ -21,21 +35,26 @@ export function registerIngestRoutes(
       limit: `${c.ingestMaxUploadMb}mb`,
     }),
     async (req, res, next) => {
+      let release: (() => void) | undefined;
       try {
+        release = acquire();
+        if (req.aborted) throw new QueryError("cancelled", "上传已取消");
         const input = await readIngestInput(req, c, checkWiki, signal);
         signal?.throwIfAborted();
-        const job = await store.start(input);
+        const job = await getStore().start(input);
         res
           .status(202)
           .json({ jobId: job.id, status: job.status, notices: job.notices });
       } catch (error) {
         next(error);
+      } finally {
+        release?.();
       }
     },
   );
   app.get("/api/ingest/:id/events", (req, res) => {
     const id = req.params.id;
-    const job = store.get(id);
+    const job = getStore().get(id);
     if (!job)
       return res.status(404).json({ error: "摄入任务不存在", code: "missing" });
     res.status(200).set({
@@ -61,7 +80,7 @@ export function registerIngestRoutes(
         res.end();
       }
     };
-    const unsubscribe = store.subscribe(id, emit);
+    const unsubscribe = getStore().subscribe(id, emit);
     heartbeat = setInterval(() => {
       if (!res.destroyed && !res.writableEnded) res.write(": keepalive\n\n");
     }, 15000);
@@ -77,29 +96,43 @@ export function registerIngestRoutes(
   });
   app.get("/api/ingest/:id/preview", (req, res, next) => {
     try {
-      const job = store.get(req.params.id);
+      const job = getStore().get(req.params.id);
       if (!job) throw new QueryError("missing", "摄入任务不存在", 404);
       if (job.status !== "preview")
         throw new QueryError("state", "任务不在预览状态", 409);
-      res.json(store.previewData(job));
+      res.json(getStore().previewData(job));
     } catch (error) {
       next(error);
     }
   });
   app.post("/api/ingest/:id/apply", async (req, res, next) => {
+    let release: (() => void) | undefined;
     try {
-      res.json({ applied: await store.apply(req.params.id) });
+      release = acquire();
+      res.json({ applied: await getStore().apply(req.params.id) });
     } catch (error) {
       next(error);
+    } finally {
+      release?.();
     }
   });
   app.delete("/api/ingest/:id", (req, res) => {
-    if (!store.get(req.params.id))
+    const store = getStore();
+    const job = store.get(req.params.id);
+    if (!job)
       return res.status(404).json({ error: "摄入任务不存在", code: "missing" });
-    if (!store.cancel(req.params.id))
+    if (job.status === "applied")
       return res
         .status(409)
-        .json({ error: "任务已结束，无法取消", code: "state" });
+        .json({ error: "任务已应用，无法丢弃", code: "state" });
+    // Repeating a cancellation after expiry or another tab's action is safe.
+    if (
+      (job.status === "running" || job.status === "preview") &&
+      !store.cancel(job.id)
+    )
+      return res
+        .status(409)
+        .json({ error: "正在应用变更，请稍后重试", code: "busy" });
     res.status(204).end();
   });
 }

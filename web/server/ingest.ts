@@ -77,6 +77,21 @@ export class IngestStore {
     private c: Config,
     private agent?: IngestAgentQuery,
   ) {}
+  get blocksSwitch(): boolean {
+    return (
+      this.applying ||
+      [...this.jobs.values()].some(
+        (job) => job.status === "running" || job.status === "preview",
+      )
+    );
+  }
+  pending() {
+    this.sweep();
+    return [...this.jobs.values()].find(
+      (job) => job.status === "running" || job.status === "preview",
+    );
+  }
+  private applying = false;
   async start(input: IngestInput): Promise<IngestJob> {
     if (this.closed)
       throw new QueryError("ingest_disabled", "摄入服务已停止", 503);
@@ -92,6 +107,8 @@ export class IngestStore {
         "当前摄入仅支持上传 .md / .txt / .docx / .pdf / .pptx 文件",
         400,
       );
+    if (this.applying)
+      throw new QueryError("busy", "正在应用变更，请稍后摄入", 409);
     // Reserve the slot synchronously so concurrent starts cannot both slip
     // past the single-flight check while the pre-check awaits I/O.
     for (const job of this.jobs.values())
@@ -186,6 +203,7 @@ export class IngestStore {
     };
   }
   cancel(id: string): boolean {
+    if (this.applying) return false;
     const job = this.jobs.get(id);
     if (!job) return false;
     if (job.status === "running") {
@@ -203,16 +221,25 @@ export class IngestStore {
     if (!job) throw new QueryError("missing", "摄入任务不存在", 404);
     if (job.status !== "preview")
       throw new QueryError("state", "任务不在预览状态，无法应用", 409);
-    const applied = await applyChanges(
-      this.c.root,
-      job.staging!,
-      job.changes!,
-      job.baseline!,
-    );
-    this.finish(job, "applied");
-    return applied;
+    if (this.applying) throw new QueryError("busy", "正在应用变更", 409);
+    if ([...this.jobs.values()].some((other) => other.status === "running"))
+      throw new QueryError("busy", "请等待摄入任务结束后应用变更", 409);
+    this.applying = true;
+    try {
+      const applied = await applyChanges(
+        this.c.root,
+        job.staging!,
+        job.changes!,
+        job.baseline!,
+      );
+      this.finish(job, "applied");
+      return applied;
+    } finally {
+      this.applying = false;
+    }
   }
   sweep(now = Date.now()) {
+    if (this.applying) return;
     for (const [id, job] of this.jobs) {
       if (job.status === "preview" && now - job.lastUsed > PREVIEW_IDLE_MS)
         this.finish(job, "discarded");
@@ -305,8 +332,8 @@ export class IngestStore {
             : this.c.ingestModel,
       }),
     );
-    job.staging = await createStaging(this.c.root);
     job.baseline = await digestTree(this.c.root);
+    job.staging = await createStaging(this.c.root, job.baseline);
     const today = new Date().toISOString().slice(0, 10);
     let fetchHost: string | undefined;
     let task: Parameters<typeof buildTaskPrompt>[0];

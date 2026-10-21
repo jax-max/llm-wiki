@@ -11,6 +11,7 @@ type IngestChange = {
   diff: string;
 };
 type IngestPreview = {
+  id?: string;
   status: string;
   kind: "url" | "file";
   source: string;
@@ -42,6 +43,8 @@ export default function IngestDialog({
   const [url, setUrl] = useState("");
   const [file, setFile] = useState<File>();
   const [submitting, setSubmitting] = useState(false);
+  const [recovering, setRecovering] = useState(true);
+  const [cancelling, setCancelling] = useState(false);
   const [notices, setNotices] = useState<string[]>([]);
   const [source, setSource] = useState("");
   const [progress, setProgress] = useState("");
@@ -60,9 +63,53 @@ export default function IngestDialog({
   // Event callbacks capture a stale stage closure; mirror it in a ref.
   const stageRef = useRef<Stage>("form");
   stageRef.current = stage;
-  useEffect(() => () => eventsAbort.current?.abort(), []);
+  const recoveryAbort = useRef<AbortController>();
+  useEffect(() => {
+    void recover();
+    return () => {
+      recoveryAbort.current?.abort();
+      eventsAbort.current?.abort();
+    };
+  }, []);
+  async function recover() {
+    recoveryAbort.current?.abort();
+    eventsAbort.current?.abort();
+    const abort = new AbortController();
+    recoveryAbort.current = abort;
+    setRecovering(true);
+    setError("");
+    try {
+      const response = await fetch(
+        "/api/ingest/pending?" + new URLSearchParams({ wikiId }),
+        { signal: abort.signal },
+      );
+      const data = await response.json();
+      if (abort.signal.aborted) return;
+      if (!response.ok) throw data;
+      const job: IngestPreview | null = data.job;
+      if (job?.id) {
+        jobId.current = job.id;
+        setSource(job.source);
+        setNotices(job.notices || []);
+        setPreview(job.status === "preview" ? job : undefined);
+        setStage(job.status === "preview" ? "preview" : "running");
+        setProgress(t.progress.ingest.working);
+        void subscribe();
+      } else {
+        jobId.current = undefined;
+        setStage("form");
+      }
+    } catch (e) {
+      if (!abort.signal.aborted) {
+        setError(errorMessage(e, locale));
+        setStage("error");
+      }
+    } finally {
+      if (!abort.signal.aborted) setRecovering(false);
+    }
+  }
   async function start() {
-    if (!url.trim() && !file) return;
+    if (recovering || submitting || (!url.trim() && !file)) return;
     setSubmitting(true);
     setError("");
     try {
@@ -105,6 +152,7 @@ export default function IngestDialog({
       );
       if (!response.ok) throw new Error();
       await readSSE(response, (event, data) => {
+        if (abort.signal.aborted) return;
         if (event === "progress")
           setProgress(ingestProgressMessage(data, locale));
         else if (event === "delta")
@@ -137,11 +185,23 @@ export default function IngestDialog({
     }
   }
   async function stopRun() {
-    await fetch(`/api/ingest/${encodeURIComponent(jobId.current!)}`, {
-      method: "DELETE",
-    }).catch(() => {});
-    setEndNote(t.ingest.discarded);
-    setStage("done");
+    if (cancelling) return;
+    setCancelling(true);
+    setError("");
+    try {
+      const response = await fetch(
+        `/api/ingest/${encodeURIComponent(jobId.current!)}`,
+        { method: "DELETE" },
+      );
+      if (!response.ok && response.status !== 404) throw await response.json();
+      eventsAbort.current?.abort();
+      setEndNote(t.ingest.discarded);
+      setStage("done");
+    } catch (e) {
+      setError(errorMessage(e, locale));
+    } finally {
+      setCancelling(false);
+    }
   }
   async function apply() {
     setApplying(true);
@@ -167,11 +227,7 @@ export default function IngestDialog({
     }
   }
   async function discard() {
-    await fetch(`/api/ingest/${encodeURIComponent(jobId.current!)}`, {
-      method: "DELETE",
-    }).catch(() => {});
-    setEndNote(t.ingest.discarded);
-    setStage("done");
+    await stopRun();
   }
   const changes = preview?.changes || [];
   return (
@@ -187,12 +243,23 @@ export default function IngestDialog({
           <button
             aria-label={t.ingest.close}
             onClick={onClose}
-            disabled={submitting || stage === "running"}
+            disabled={
+              recovering ||
+              cancelling ||
+              submitting ||
+              applying ||
+              stage === "running"
+            }
           >
             ✕
           </button>
         </div>
-        {stage === "form" && (
+        {recovering && (
+          <p role="status" className="ingest-body">
+            {t.wiki.loading}
+          </p>
+        )}
+        {!recovering && stage === "form" && (
           <div className="ingest-body">
             <p className="ingest-intro">{t.ingest.intro}</p>
             <label>{t.ingest.urlLabel}</label>
@@ -254,7 +321,7 @@ export default function IngestDialog({
             </div>
           </div>
         )}
-        {stage === "running" && (
+        {!recovering && stage === "running" && (
           <div className="ingest-body">
             <div className="ingest-source">
               {t.ingest.runSource}：{source}
@@ -269,12 +336,19 @@ export default function IngestDialog({
               {progress}
             </div>
             {log && <pre className="ingest-log">{log}</pre>}
+            {error && (
+              <p role="alert" className="error">
+                {error}
+              </p>
+            )}
             <div className="ingest-actions">
-              <button onClick={() => void stopRun()}>{t.ingest.stopRun}</button>
+              <button onClick={() => void stopRun()} disabled={cancelling}>
+                {t.ingest.stopRun}
+              </button>
             </div>
           </div>
         )}
-        {stage === "preview" && (
+        {!recovering && stage === "preview" && (
           <div className="ingest-body">
             <h3>{t.ingest.previewTitle}</h3>
             {notices.map((notice) => (
@@ -343,20 +417,23 @@ export default function IngestDialog({
               </p>
             )}
             <div className="ingest-actions">
-              <button onClick={() => void discard()} disabled={applying}>
+              <button
+                onClick={() => void discard()}
+                disabled={applying || cancelling}
+              >
                 {t.ingest.discard}
               </button>
               <button
                 className="primary"
                 onClick={() => void apply()}
-                disabled={applying || !changes.length}
+                disabled={applying || cancelling || !changes.length}
               >
                 {applying ? t.ingest.applying : t.ingest.apply}
               </button>
             </div>
           </div>
         )}
-        {(stage === "done" || stage === "error") && (
+        {!recovering && (stage === "done" || stage === "error") && (
           <div className="ingest-body">
             {stage === "done" ? (
               <p className="ingest-done">{endNote}</p>
@@ -380,6 +457,11 @@ export default function IngestDialog({
               {stage === "done" && appliedChanges && onViewUpdates && (
                 <button className="primary" onClick={onViewUpdates}>
                   {t.ingest.viewUpdates}
+                </button>
+              )}
+              {stage === "error" && (
+                <button onClick={() => void recover()}>
+                  {t.catalog.retry}
                 </button>
               )}
               <button onClick={onClose}>{t.ingest.close}</button>

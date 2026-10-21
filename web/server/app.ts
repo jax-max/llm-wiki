@@ -1,4 +1,5 @@
 import express from "express";
+import { WorkspaceSwitch, browseDirectories } from "./workspace.js";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { publicConfig, webRoot, type Config } from "./config.js";
@@ -17,11 +18,24 @@ export function createApp(
   c: Config,
   factory?: Factory,
   ingestAgent?: IngestAgentQuery,
+  selectionFile = path.join(webRoot, ".local/wiki-selection.json"),
 ) {
+  c = { ...c };
   const app = express();
   app.disable("x-powered-by");
   const sessions = new Map<string, Conversation>();
-  const ingest = new IngestStore(c, ingestAgent);
+  let ingest = new IngestStore({ ...c }, ingestAgent);
+  const workspace = new WorkspaceSwitch(
+    c,
+    selectionFile,
+    () =>
+      ingest.blocksSwitch || [...sessions.values()].some((s) => !!s.controller),
+    () => {
+      sessions.clear();
+      ingest.close();
+      ingest = new IngestStore({ ...c }, ingestAgent);
+    },
+  );
   const shutdown = new AbortController();
   const cleanup = setInterval(() => {
     for (const [id, s] of sessions)
@@ -31,6 +45,7 @@ export function createApp(
   }, 60000);
   cleanup.unref();
   const close = () => {
+    workspace.close();
     shutdown.abort(new QueryError("cancelled", "服务停止", 503));
     clearInterval(cleanup);
     for (const s of sessions.values())
@@ -61,11 +76,55 @@ export function createApp(
     );
     next();
   });
+  // Reserve before body buffering/parsing. Response closure releases the lease;
+  // query controllers and ingest jobs also block switching until work settles.
+  app.use((req, res, next) => {
+    if (
+      req.method === "GET" ||
+      !(req.path === "/api/chat" || req.path.startsWith("/api/ingest"))
+    )
+      return next();
+    try {
+      const release = workspace.acquire();
+      res.once("finish", release);
+      res.once("close", release);
+      next();
+    } catch (error) {
+      next(error);
+    }
+  });
   app.use(express.json({ limit: "64kb" }));
   app.get("/healthz", (_req, res) => res.json({ ready: true }));
-  app.get("/api/config", (_req, res) => res.json(publicConfig(c)));
+  app.get("/api/config", (_req, res) =>
+    res.set("Cache-Control", "no-store").json(publicConfig(c)),
+  );
+  app.get("/api/directories", async (req, res, next) => {
+    try {
+      if (req.query.path !== undefined && typeof req.query.path !== "string")
+        throw new QueryError("path", "无效目录路径");
+      res
+        .set("Cache-Control", "no-store")
+        .json(
+          await browseDirectories(
+            (req.query.path as string) || c.root,
+            req.query.hidden === "true",
+          ),
+        );
+    } catch (error) {
+      next(error);
+    }
+  });
+  app.post("/api/wiki/select", async (req, res, next) => {
+    try {
+      await workspace.select(req.body?.path, req.body?.wikiId);
+      res.json(publicConfig(c));
+    } catch (error) {
+      next(error);
+    }
+  });
   const checkWiki = (id: unknown) => {
-    if (id !== c.wikiId) throw new QueryError("wiki", "知识库标识不匹配", 400);
+    if (id !== c.wikiId)
+      throw new QueryError("wiki", "Wiki 已切换，请刷新页面", 409);
   };
   app.get("/api/catalog", async (req, res, next) => {
     try {
@@ -101,7 +160,9 @@ export function createApp(
   app.post("/api/chat", async (req, res, next) => {
     let s: Conversation;
     let id: string;
+    let release: (() => void) | undefined;
     try {
+      release = workspace.acquire();
       checkWiki(req.body?.wikiId);
       if (
         typeof req.body.message !== "string" ||
@@ -136,6 +197,7 @@ export function createApp(
       s.controller = new AbortController();
       sessions.set(id, s);
     } catch (e) {
+      release?.();
       next(e);
       return;
     }
@@ -175,7 +237,7 @@ export function createApp(
     emit("session", { sessionId: id });
     try {
       s.history = await runQuery(
-        c,
+        { ...c },
         req.body.message,
         s.history,
         controller,
@@ -195,6 +257,7 @@ export function createApp(
     } finally {
       clearInterval(heartbeat);
       res.off("close", disconnected);
+      release?.();
       s.controller = undefined;
       s.lastUsed = Date.now();
       res.end();
@@ -203,7 +266,13 @@ export function createApp(
       );
     }
   });
-  registerIngestRoutes(app, c, ingest, shutdown.signal);
+  registerIngestRoutes(
+    app,
+    c,
+    () => ingest,
+    shutdown.signal,
+    () => workspace.acquire(),
+  );
   app.use("/api", (_req, res) => res.status(404).json({ error: "接口不存在" }));
   app.use(express.static(path.join(webRoot, "dist/client")));
   app.get("*", (_req, res) =>
@@ -227,5 +296,12 @@ export function createApp(
       res.status(e.status).json({ error: e.message, code: e.code });
     },
   );
-  return { app, close, sessions, ingest };
+  return {
+    app,
+    close,
+    sessions,
+    get ingest() {
+      return ingest;
+    },
+  };
 }

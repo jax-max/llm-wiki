@@ -1,9 +1,9 @@
 import path from "node:path";
-import { constants } from "node:fs";
+import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { access, stat } from "node:fs/promises";
 import dotenv from "dotenv";
 import { loadPorts } from "./ports.js";
+import { validateWikiRoot, restoreWikiRoot } from "./workspace.js";
 export const webRoot = fileURLToPath(
   new URL(
     import.meta.url.includes("/dist/") ? "../../" : "../",
@@ -69,24 +69,15 @@ export async function loadConfig(
     throw new Error("LLM_BASE_URL 必须是无凭证、查询和片段的 HTTP(S) 地址");
   }
   const model = required("LLM_MODEL");
-  const root = path.resolve(webRoot, env.WIKI_ROOT || "../examples/demo-wiki");
-  for (const [p, dir] of [
-    ["wiki/schema.md", false],
-    ["wiki/index.md", false],
-    ["wiki/domains", true],
-    ["raw", true],
-  ] as const) {
-    try {
-      await access(
-        path.join(root, p),
-        constants.R_OK | (dir ? constants.X_OK : 0),
-      );
-      const s = await stat(path.join(root, p));
-      if (dir ? !s.isDirectory() : !s.isFile()) throw 0;
-    } catch {
-      throw new Error(`WIKI_ROOT 缺少可读${dir ? "目录" : "文件"}：${p}`);
-    }
-  }
+  const fallbackRoot = path.resolve(
+    webRoot,
+    env.WIKI_ROOT || "../examples/demo-wiki",
+  );
+  const savedRoot =
+    env === process.env
+      ? await restoreWikiRoot(path.join(webRoot, ".local/wiki-selection.json"))
+      : undefined;
+  const root = savedRoot || (await validateWikiRoot(fallbackRoot));
   const maxCalls = integer("QUERY_MAX_TOOL_CALLS", 30, 1000);
   // 未显式配置超时时，按每次工具调用 15 秒模型往返、另加 30 秒用于
   // 首轮加载与最终回答推算，避免预算未用完就先超时；上限 1 小时。
@@ -114,8 +105,9 @@ export async function loadConfig(
   const ingestEnabled = bool("INGEST_ENABLED", true);
   return {
     root,
-    wikiId: env.WIKI_ID?.trim() || "default",
-    name: env.WIKI_NAME?.trim() || path.basename(root),
+    wikiId: savedRoot ? randomUUID() : env.WIKI_ID?.trim() || "default",
+    name:
+      (savedRoot ? undefined : env.WIKI_NAME?.trim()) || path.basename(root),
     api,
     baseUrl,
     model,
@@ -136,6 +128,7 @@ export async function loadConfig(
   };
 }
 export const publicConfig = (c: Config) => ({
+  root: c.root,
   wikiId: c.wikiId,
   name: c.name,
   model: c.model,

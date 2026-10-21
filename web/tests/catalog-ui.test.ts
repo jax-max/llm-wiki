@@ -177,6 +177,8 @@ for (const width of [1400, 390]) {
     let query: Record<string, unknown> | undefined;
     globalThis.fetch = async (input, init) => {
       const url = String(input);
+      if (url.startsWith("/api/ingest/pending"))
+        return Response.json({ job: null });
       if (url === "/api/config")
         return Response.json({ wikiId: "default", name: "Demo" });
       if (url.startsWith("/api/catalog"))
@@ -305,6 +307,8 @@ for (const width of [1400, 1024, 390]) {
     let resolveOld!: (response: Response) => void;
     globalThis.fetch = async (input, init) => {
       const url = String(input);
+      if (url.startsWith("/api/ingest/pending"))
+        return Response.json({ job: null });
       if (url === "/api/config")
         return Response.json({
           wikiId: "default",
@@ -403,7 +407,7 @@ for (const width of [1400, 1024, 390]) {
         [...document.querySelectorAll(".header-actions button")].map((el) =>
           el.textContent?.trim(),
         ),
-        ["添加资料", "问知识库", "EN"],
+        ["切换 Wiki", "添加资料", "问知识库", "EN"],
       );
       await click(button("添加资料", document.querySelector("header")!));
       assert.ok(document.querySelector(".ingest-dialog"));
@@ -538,14 +542,16 @@ test("ingest form cannot close or change inputs while upload/extraction is pendi
   );
   const originalFetch = globalThis.fetch;
   let resolveUpload!: (response: Response) => void;
-  globalThis.fetch = async () =>
-    new Promise<Response>((resolve) => {
-      resolveUpload = resolve;
-    });
+  globalThis.fetch = async (input) =>
+    String(input).startsWith("/api/ingest/pending")
+      ? Response.json({ job: null })
+      : new Promise<Response>((resolve) => {
+          resolveUpload = resolve;
+        });
   let closeCalls = 0;
   const root = createRoot(document.getElementById("root")!);
   try {
-    await act(async () =>
+    await act(async () => {
       root.render(
         React.createElement(IngestDialog, {
           wikiId: "default",
@@ -554,8 +560,9 @@ test("ingest form cannot close or change inputs while upload/extraction is pendi
             closeCalls++;
           },
         }),
-      ),
-    );
+      );
+      await flush();
+    });
     const url = document.querySelector<HTMLInputElement>(
       '.ingest-dialog input[type="url"]',
     )!;
@@ -587,6 +594,72 @@ test("ingest form cannot close or change inputs while upload/extraction is pendi
     );
     await click(close);
     assert.equal(closeCalls, 1);
+  } finally {
+    await act(async () => root.unmount());
+    globalThis.fetch = originalFetch;
+    dom.window.localStorage.clear();
+  }
+});
+
+test("reopening ingestion recovers a pending preview and a failed discard preserves it", async () => {
+  dom.window.localStorage.setItem(STORAGE_KEY, "zh");
+  const { default: IngestDialog } = await import(
+    "../src/ingest/IngestDialog.js"
+  );
+  const originalFetch = globalThis.fetch;
+  let failDelete = true;
+  const preview = {
+    id: "recovered",
+    status: "preview",
+    kind: "file",
+    source: "source.md",
+    changes: [
+      {
+        path: "wiki/index.md",
+        change: "modified",
+        additions: 1,
+        deletions: 0,
+        diff: "+ hello",
+      },
+    ],
+  };
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+    if (url.startsWith("/api/ingest/pending"))
+      return Response.json({ job: preview });
+    if (url.endsWith("/events")) return new Response(frame("done", preview));
+    assert.equal(url, "/api/ingest/recovered");
+    assert.equal(init?.method, "DELETE");
+    return failDelete
+      ? Response.json({ code: "busy" }, { status: 409 })
+      : new Response(null, { status: 204 });
+  };
+  const root = createRoot(document.getElementById("root")!);
+  try {
+    await act(async () => {
+      root.render(
+        React.createElement(IngestDialog, {
+          wikiId: "default",
+          maxUploadMb: 20,
+          onClose: () => {},
+        }),
+      );
+      await flush();
+    });
+    assert.ok(button("丢弃本次变更"));
+    assert.match(
+      document.querySelector(".ingest-diff")?.textContent ||
+        document.querySelector(".ingest-dialog")!.textContent!,
+      /wiki\/index.md/,
+    );
+    await click(button("丢弃本次变更"));
+    assert.ok(document.querySelector('[role="alert"]'));
+    assert.ok(button("丢弃本次变更"));
+    assert.equal(document.querySelector(".ingest-done"), null);
+    failDelete = false;
+    await click(button("丢弃本次变更"));
+    assert.ok(document.querySelector(".ingest-done"));
+    assert.equal(button("丢弃本次变更"), undefined);
   } finally {
     await act(async () => root.unmount());
     globalThis.fetch = originalFetch;

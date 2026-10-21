@@ -869,3 +869,59 @@ main {
     font-size: 14px;
   }
 }
+
+.wiki-selector {
+  width: min(640px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--border, #ddd);
+  border-radius: 12px;
+  color: inherit;
+  background: var(--surface, #fff);
+  overflow: auto;
+}
+.wiki-selector::backdrop {
+  background: rgb(0 0 0 / 35%);
+}
+.wiki-directory-path {
+  overflow-wrap: anywhere;
+  font-family: monospace;
+}
+.wiki-path-form > div {
+  display: flex;
+  gap: 8px;
+  margin: 6px 0 12px;
+}
+.wiki-path-form input {
+  min-width: 0;
+  flex: 1;
+}
+.wiki-hidden {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.wiki-selector .wiki-hidden input {
+  width: auto;
+}
+.wiki-directories {
+  list-style: none;
+  padding: 0;
+  max-height: 35dvh;
+  overflow: auto;
+}
+.wiki-directories button {
+  width: 100%;
+  text-align: start;
+  margin-bottom: 4px;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 760px) {
+  .header-actions {
+    max-width: 70%;
+    flex: 0 1 auto;
+    flex-wrap: wrap;
+  }
+}

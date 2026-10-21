@@ -74,13 +74,30 @@ export class Wiki {
     return { pages: pages.sort((a, b) => a.path.localeCompare(b.path, "en")) };
   }
   async resolve(input: string) {
-    const relative = documentPath(input);
     const root = await realpath(this.root);
+    // Catalog/API paths are filenames, whereas model citations may be URI
+    // encoded or include a fragment. Prefer an existing literal filename so
+    // names containing '%' or '#' are not decoded a second time.
     let target: string;
     try {
-      target = await realpath(path.join(root, relative));
-    } catch {
-      throw new QueryError("missing", "来源不存在", 404);
+      const literal = documentPath(
+        input.split("/").map(encodeURIComponent).join("/"),
+      );
+      target = await realpath(path.join(root, literal));
+    } catch (error) {
+      if (
+        !(error instanceof QueryError) &&
+        !["ENOENT", "ENOTDIR"].includes(
+          (error as NodeJS.ErrnoException).code || "",
+        )
+      )
+        throw new QueryError("missing", "来源不可访问", 404);
+      const relative = documentPath(input);
+      try {
+        target = await realpath(path.join(root, relative));
+      } catch {
+        throw new QueryError("missing", "来源不存在", 404);
+      }
     }
     const canonical = path.relative(root, target).split(path.sep).join("/");
     if (

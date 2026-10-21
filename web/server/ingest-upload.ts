@@ -41,7 +41,7 @@ export async function rawPathForUpload(
   const stem =
     filename
       .replace(/\.(md|txt|docx|pdf|pptx)$/i, "")
-      .replace(/[\u0000-\u001f\\/:*?"<>|]/g, "")
+      .replace(/[\u0000-\u001f\\/:*?"<>|%#]/g, "")
       .trim()
       .replace(/\s+/g, "-")
       .slice(0, 60) || "upload";

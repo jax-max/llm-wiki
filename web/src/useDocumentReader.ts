@@ -41,7 +41,7 @@ export function useDocumentReader(wikiId: string | undefined, locale: Locale) {
           }),
       );
       const doc: Doc = await response.json();
-      if (!response.ok) throw new Error("document");
+      if (!response.ok) throw doc;
       if (token !== request.current) return;
       setDocuments((old) =>
         more
