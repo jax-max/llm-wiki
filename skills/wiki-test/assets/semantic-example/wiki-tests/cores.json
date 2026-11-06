@@ -2,21 +2,19 @@
   "cores": [
     {
       "core": "退货期限：期限内允许、超期拒绝",
+      "mode": "qa",
+      "question": "普通用户的非定制商品在签收后什么期限内可退？",
       "cases": [
         "within",
         "late"
-      ],
-      "mutations": [
-        "shorter-window"
       ]
     },
     {
       "core": "定制商品例外优先于一般期限",
+      "mode": "qa",
+      "question": "定制商品是否也适用一般的七日退货规则？",
       "cases": [
         "custom"
-      ],
-      "mutations": [
-        "allow-custom"
       ]
     }
   ]

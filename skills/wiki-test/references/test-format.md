@@ -83,8 +83,10 @@ natural-language business procedures.
 `generate` adds one fact-equality draft per new fact and records `generated_facts`
 to avoid regenerating it. Such snapshots detect value regressions but are not a
 substitute for boundary and cross-page cases. Existing cases, answers and statuses
-are preserved. Removal/rename needs explicit binding migration. Keep the generation
-report for review; `inventory.json` is the last scan, not an approval baseline.
+are preserved, and unchanged assets are not rewritten. Removal/rename needs
+explicit binding migration. Keep the generation report for review; `inventory.json`
+is the last scan (entries carry the bound-text hash and the whole-page hash so
+changes outside a binding are still noticed), not an approval baseline.
 
 ## Fact mutations
 
@@ -109,10 +111,12 @@ or removes the last array member; review their relevance before approval.
 
 At least one designated case with a passing baseline must flip for a mutation
 check to pass. Individual pair results are also retained. A baseline failure is
-never a detection. Mutations with no passing baseline or stale preconditions are
-reported as failed and excluded from the detection-rate denominator. A zero
-denominator is N/A, not 100%. Rule coverage still measures registered knowledge,
-not the entire domain. Pages without blocks are listed separately.
+never a detection. Mutations only execute under `--verify-tests`: the default
+`run` is a baseline regression that stale mutation text cannot fail, while a
+verification run reports stale preconditions as failed and excludes them from the
+detection-rate denominator. A zero denominator is N/A, not 100%. Rule coverage
+still measures registered knowledge, not the entire domain. Pages without blocks
+are listed separately.
 
 ## Versioning and limitations
 
@@ -163,8 +167,11 @@ is true. Requests and actual model identifiers are retained in JSON reports.
 
 ## Core logic and quality findings
 
-Select branches, prerequisites, execution order, exceptions, responsibility
-boundaries and cross-page dependencies that affect concrete reader decisions.
+Use the Skill's two reasoning paths: `application` for an explicitly stated task,
+otherwise `qa` for principal questions derived from the Wiki's topics. Select
+branches, prerequisites, order, exceptions, responsibility boundaries and cross-page
+dependencies because they change a task decision or a principal answer, not simply
+because they fit a logic category.
 A case has one main conclusion and guards a distinct failure mode. There is no
 fixed number of cases per core. A second wording of the same scenario does not
 create another branch. Do not author tests just for field lists, relation edges
@@ -176,16 +183,34 @@ needed to qualify the conclusion. In `rationale`, state the Wiki derivation and
 what wrong decision this case prevents. Do not infer false from missing evidence.
 
 Maintain `cores.json` as an agent-authored mapping with a `cores` array. Each entry
-has `core` (the behavior), `cases` (case IDs), `mutations` (mutation IDs), and
-optionally `unresolved` (finding IDs from the quality report). Group by behavior,
-not by page. This mapping is review material, not a coverage percentage or a
-separate executable rule engine.
+has `mode` (`application` or `qa`), `core` (the protected logic), `question`
+(the principal question/decision) and `cases` (case IDs). For `application`, also
+record `task` (the concrete use and where the user or Wiki stated it). Optional
+`unresolved` contains quality-finding IDs. Do not maintain the Wiki basis or the
+guarded failure a second time here: they live in each case's bindings and
+`rationale`, and mutation ownership is derived from `suite.json` case references.
+A core without cases points at quality findings through `unresolved` instead of
+inventing cases to complete the mapping. Group by coherent questions/decisions,
+not by page. This is authoring/review material; it does not add another runtime
+rule engine.
+
+```json
+{
+  "mode": "qa",
+  "core": "奖池匹配优先级",
+  "question": "城市和得分同时存在或城市缺失时，如何选择奖池？",
+  "cases": ["city-first", "score-fallback"]
+}
+```
 
 Write `wiki-tests/quality.md` after authoring/review. Include the reviewed Wiki scope
 and one entry per unresolved core scenario: stable finding ID, scenario, Wiki
-path and line range(s), missing condition/ambiguity/conflicting statements,
-decision impact, and what the Wiki must clarify. Distinguish documented unknowns
-from contradictions. Do not create approved boolean cases for unresolved answers.
+path and line range(s), mode, classification (core gap, conflict or answer boundary),
+missing condition/ambiguity/conflicting statements, and decision/answer impact.
+For a gap/conflict, state what needs clarification; for an answer boundary, state
+what the QA must not infer. An unspecified follow-up does not require expanding
+a QA Wiki into a complete implementation guide. Do not create approved boolean
+cases for unresolved answers.
 If no issues were found, state that within the reviewed scope; do not infer this
 from passing tests. The script neither writes nor overwrites this semantic review.
 
@@ -205,10 +230,17 @@ answer. Equivalent rewrites are acceptance scenarios, not another asset type.
 
 ## Execution and coverage
 
-Run with `TYPESAFE_API_KEY` in the environment. The adapter uses the official
-`POST https://api.typesafe.ai/v1/systemone` endpoint with a `noul` question.
-See https://docs.typesafe.ai/introduction/quickstart for the API definition.
-No SDK dependency, no semantic fallback to local matching.
+`run` has two scopes. The default regression executes all approved baseline cases
+and no mutations. `--verify-tests` additionally applies approved mutations;
+`--case <id>` (repeatable, requires `--verify-tests`) restricts execution to the
+selected cases plus the related mutations' checks on those cases, rejecting
+unknown or unapproved IDs. Unselected cases never decide a mutation result, and
+reports state the scope — mutations not run, failed, and full or partial
+verification — so a partial pass cannot pose as a full one. Run with
+`TYPESAFE_API_KEY` in the environment for semantic cases. The adapter uses the
+official `POST https://api.typesafe.ai/v1/systemone` endpoint with a `noul`
+question. See https://docs.typesafe.ai/introduction/quickstart for the API
+definition. No SDK dependency, no semantic fallback to local matching.
 
 Reports distinguish knowledge with semantic cases (`semantic_rules`), structured
 fact references (`deterministic_facts`), and any-test bindings (`rules`, inventory
@@ -216,10 +248,19 @@ only). A single checked field does not mean other facts or the prose were verifi
 The `gold` statistic counts passing approved cases. All statistics count approved cases only; context-only dependencies
 are not coverage targets. Individual mutation results retain their case pairs.
 
-The `generate` helper creates draft snapshots and `reports/authoring.json`, not
-natural-language scenario tests. The Skill must finish semantic authoring and
-Wiki-only review and its quality findings before reporting generation complete. This division deliberately
-keeps bookkeeping in scripts and interpretation in the Agent.
+The `generate` helper creates draft snapshots, `reports/authoring.json` and
+`reports/generation.json`, not natural-language scenario tests. `generation.json`
+records the scan's added/changed/removed knowledge, pages and the affected
+cases/cores/mutations (both `targets` and `context_rules` count as dependencies);
+`authoring.json` records the `scan_version`, the reviewed Wiki scope and the
+persistent review queue (`pending`/`done`/`auto_cleared`). Reruns never drop
+unfinished items; the agent marks items `done` with the current `scan_version`,
+and changed content returns as a new pending item, so an old completion cannot
+pose as current. Wording changes outside a binding still queue the page for
+review instead of being assumed equivalent. The Skill must finish semantic
+authoring and Wiki-only review and its quality findings before reporting
+generation complete. This division deliberately keeps bookkeeping in scripts and
+interpretation in the Agent.
 
 
 ## Integrity and incomplete runs
@@ -229,12 +270,15 @@ and a contained range would duplicate the original text during mutation. Validat
 rejects this; use distinct ranges or one shared binding. Structured-rule inventory
 hashes include the page prose so prose-only changes enter the review queue.
 
-Generation reports missing pages, stale line bindings and unresolved anchors in
+Generation reports missing pages, stale line bindings, ambiguous anchors (the
+anchor text occurs more than once) and bindings beyond a shortened page in
 `authoring.json.missing_bindings`, retains their cases and expected answers, and
-allows the author to repair bindings. Execution remains strict and rejects them.
+allows the author to repair bindings; it never guesses or widens a binding.
+New, deleted and renamed pages enter the review queue without automatic new or
+removed cases. Execution remains strict and rejects all of these.
 
 Starting `run` marks the latest report `completed: false` before validation or
 network work. Only a finished run writes `completed: true`; an interruption cannot
 leave a previous passing report looking current. This is run metadata, not another
-question-answer type. Reports list missing semantic tests and unchecked fields
-as well as coverage fractions.
+question-answer type. Reports list the run scope, missing semantic tests and
+unchecked fields as well as coverage fractions.

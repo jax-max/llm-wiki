@@ -1,57 +1,54 @@
 {
-  "method": "按核心逻辑与独特错误场景组织，不承诺句子或页面完备",
+  "method": "无明确应用任务时默认 QA：主题 → 主要问题 → 结论及关键限定 → 场景；不承诺用户需求或句子覆盖完备",
   "cores": [
     {
       "core": "活动准入的职责与必需前置条件",
+      "mode": "qa",
+      "question": "活动准入负责哪些限制，未通过准入能否继续抽奖？",
       "cases": [
         "admission-scope",
         "admission-not-bypassed"
-      ],
-      "mutations": [
-        "m-admission-mandatory"
       ]
     },
     {
       "core": "登录、风控、准入的相对顺序",
+      "mode": "qa",
+      "question": "登录、风控与活动准入按什么顺序执行？",
       "cases": [
         "login-before-risk",
         "risk-before-admission"
-      ],
-      "mutations": [
-        "m-risk-order"
       ]
     },
     {
       "core": "风控限制频率及失败处理的知识边界",
+      "mode": "qa",
+      "question": "风控负责什么，Wiki 是否定义了失败响应？",
       "cases": [
         "risk-purpose",
         "risk-failure-unknown"
       ],
-      "mutations": [],
       "unresolved": [
         "Q2"
       ]
     },
     {
       "core": "尝试计数的时机与通用性",
+      "mode": "qa",
+      "question": "计数能力服务哪些上下文，一次抽奖在什么时机计数？",
       "cases": [
         "counting-order",
         "count-before-selection",
         "counting-exclusive-false"
-      ],
-      "mutations": [
-        "m-counting-order"
       ]
     },
     {
       "core": "奖池匹配的城市优先与得分回退",
+      "mode": "qa",
+      "question": "城市和得分同时存在或城市缺失时，如何匹配奖池？",
       "cases": [
         "city-first",
         "score-fallback",
         "selection-cross-page"
-      ],
-      "mutations": [
-        "m-city-priority"
       ],
       "unresolved": [
         "Q1"
@@ -59,67 +56,68 @@
     },
     {
       "core": "先池后品、概率选奖、未命中返回空",
+      "mode": "qa",
+      "question": "如何从奖池中选出奖品，未命中时返回什么？",
       "cases": [
         "selection-pool-first",
         "probability-mechanism",
         "selection-no-hit-empty"
       ],
-      "mutations": [],
       "unresolved": [
         "Q3"
       ]
     },
     {
       "core": "概率配置归属运营、选奖行为归属奖池",
+      "mode": "qa",
+      "question": "谁配置选奖概率，谁承担概率选奖行为？",
       "cases": [
         "probability-configured",
         "pool-not-service"
-      ],
-      "mutations": [
-        "m-prob-config"
       ]
     },
     {
       "core": "应用服务协调及成功/失败结果",
+      "mode": "qa",
+      "question": "谁协调用户参与抽奖，成功与失败分别返回什么？",
       "cases": [
         "flow-appservice-coordinates",
         "flow-return",
         "flow-failure-return"
-      ],
-      "mutations": []
+      ]
     },
     {
       "core": "选中奖品后的发奖调用与响应转换",
+      "mode": "qa",
+      "question": "选中奖品后如何发奖，发奖响应如何成为抽奖响应？",
       "cases": [
         "flow-send-award",
         "flow-response-conversion"
-      ],
-      "mutations": []
+      ]
     },
     {
       "core": "库存通用性",
+      "mode": "qa",
+      "question": "库存能力是否只用于奖品？",
       "cases": [
         "stock-generic"
-      ],
-      "mutations": [
-        "m-stock-generic"
       ]
     },
     {
       "core": "城市换算与外部券接口隔离",
+      "mode": "qa",
+      "question": "抽奖上下文如何使用外部城市与券服务？",
       "cases": [
         "city-from-client",
         "coupon-anticorruption"
-      ],
-      "mutations": []
+      ]
     },
     {
       "core": "结果对象与事件身份边界",
+      "mode": "qa",
+      "question": "SendResult 表示结果输出还是发奖事件？",
       "cases": [
         "sendresult-not-event"
-      ],
-      "mutations": [
-        "m-event-alias"
       ]
     }
   ]

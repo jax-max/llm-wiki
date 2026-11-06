@@ -57,6 +57,16 @@ def write_json(path, value):
     path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def write_json_if_changed(path, value):
+    """Persist generated bookkeeping without rewriting unchanged assets."""
+    text = json.dumps(value, ensure_ascii=False, indent=2) + "\n"
+    if path.exists() and path.read_text(encoding="utf-8") == text:
+        return False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    return True
+
+
 def require(condition, message):
     if not condition:
         raise ValueError(message)
@@ -98,7 +108,7 @@ def load_rules(root, missing=None):
             require(type(rule.get("critical", False)) is bool, "critical must be boolean")
             require("sources" not in rule, "sources is not supported; use Wiki bindings: " + rid)
             rules[rid] = dict(rule, page=str(page.relative_to(root)),
-                              hash=digest(text), text=BLOCK.sub("", text).strip(),
+                              hash=digest(text), page_hash=digest(text), text=BLOCK.sub("", text).strip(),
                               span=[0, len(text)],
                               line=text[:match.start()].count("\n") + 1)
     suite_path = local_path(root, "wiki-tests/suite.json", "wiki-tests")
@@ -118,6 +128,7 @@ def load_rules(root, missing=None):
                 missing.append({"id": rid, "reason": "missing page", "page": entry["page"]})
                 continue
             body = page.read_text(encoding="utf-8")
+            page_hash = digest(body)
             rows = body.split("\n")
             span = [1, len(rows)]
             require(type(entry.get("critical", False)) is bool, "critical must be boolean")
@@ -129,16 +140,24 @@ def load_rules(root, missing=None):
                 require(isinstance(anchors, list) and len(anchors) == 2
                         and all(isinstance(a, str) and a.strip() for a in anchors),
                         "lines binding requires two nonempty anchors: " + rid)
-                require(lines[1] <= len(rows), "line binding beyond page end: " + rid)
+                if lines[1] > len(rows):
+                    if missing is None:
+                        raise ValueError("line binding beyond page end: " + rid)
+                    missing.append({"id": rid, "reason": "line binding beyond page end", "page": entry["page"]})
+                    continue
                 if [rows[lines[0] - 1].strip(), rows[lines[1] - 1].strip()] != [a.strip() for a in anchors]:
                     if missing is None:
                         raise ValueError("stale line binding: " + rid)
-                    missing.append({"id": rid, "reason": "stale line binding", "page": entry["page"]})
+                    counts = [sum(1 for row in rows if row.strip() == a.strip()) for a in anchors]
+                    missing.append({"id": rid,
+                                    "reason": "ambiguous anchor" if max(counts) > 1 else "stale line binding",
+                                    "page": entry["page"]})
                     continue
                 span = lines
                 body = "\n".join(rows[lines[0] - 1:lines[1]]).strip()
             require(bool(body.strip()), "empty knowledge: " + rid)
-            rules[rid] = dict(entry, page=str(page.relative_to(root)), facts={}, text=body, hash=digest(body), span=span)
+            rules[rid] = dict(entry, page=str(page.relative_to(root)), facts={}, text=body,
+                              hash=digest(body), page_hash=page_hash, span=span)
     registered = {r["page"] for r in rules.values()}
     pages = [p for p in pages if p not in registered]
     return rules, pages
@@ -309,6 +328,18 @@ def relocate_lines(entry, rows):
     return True
 
 
+def scan_version(root):
+    """Fingerprint of current Wiki content; review completion is recorded against it."""
+    root = root.resolve()
+    fingerprint = hashlib.sha256()
+    for page in sorted([local_path(root, "wiki/schema.md", "wiki")] +
+                       list((root / "wiki/domains").rglob("*.md"))):
+        local_path(root, str(page.relative_to(root)), "wiki")
+        fingerprint.update(str(page.relative_to(root)).encode("utf-8") + b"\0")
+        fingerprint.update(page.read_bytes())
+    return fingerprint.hexdigest()
+
+
 def generate(root):
     local_path(root, "wiki-tests/suite.json", "wiki-tests")
     path = root / "wiki-tests/suite.json"
@@ -325,6 +356,7 @@ def generate(root):
             write_json(path, suite)
     missing = []
     rules, pages = load_rules(root, missing=missing)
+    scan = scan_version(root)
     suite = read_json(path) if path.exists() else {"version": 1, "knowledge": [], "cases": [], "mutations": []}
     require(isinstance(suite, dict) and suite.get("version") == 1, "unsupported test set version")
     require(isinstance(suite.get("cases"), list) and isinstance(suite.get("mutations"), list), "cases/mutations must be arrays")
@@ -355,24 +387,110 @@ def generate(root):
                 require(mid not in {m["id"] for m in suite["mutations"]}, "generated mutation ID collision")
                 suite["mutations"].append({"id": mid, "status": "draft", "fact": reference,
                     "before": value, "after": replacement, "cases": [cid], "rationale": ""})
-    write_json(path, suite)
+    write_json_if_changed(path, suite)
     previous_path = local_path(root, "wiki-tests/inventory.json", "wiki-tests")
-    previous = read_json(previous_path).get("rules", {}) if previous_path.exists() else {}
-    inventory = {rid: {"page": r["page"], "hash": r["hash"]} for rid, r in rules.items()}
-    write_json(previous_path, {"rules": inventory, "pages_without_rules": pages})
+    previous_full = read_json(previous_path) if previous_path.exists() else {}
+    previous = previous_full.get("rules", {}) if isinstance(previous_full, dict) else {}
+    previous_pages = previous_full.get("pages_without_rules", []) if isinstance(previous_full, dict) else []
+    inventory = {rid: {"page": r["page"], "hash": r["hash"], "page_hash": r["page_hash"]}
+                 for rid, r in rules.items()}
+    # A missing page_hash in an older inventory must not fake a change on upgrade.
     changes = {"added": sorted(set(inventory) - set(previous)),
-               "changed": sorted(r for r in inventory.keys() & previous.keys() if inventory[r] != previous[r]),
+               "changed": sorted(r for r in inventory.keys() & previous.keys()
+                                 if inventory[r]["hash"] != previous[r].get("hash")
+                                 or inventory[r]["page"] != previous[r].get("page")),
                "removed": sorted(set(previous) - set(inventory))}
-    write_json(root / "wiki-tests/reports/generation.json", changes)
+    write_json_if_changed(previous_path, {"rules": inventory, "pages_without_rules": pages})
+
+    def depends(case):
+        return set(case["targets"]) | set(case.get("context_rules", []))
+
+    def mutation_target(mutation):
+        return mutation["target"] if mutation.get("kind") == "text" else mutation["fact"].split(".")[0]
+
+    affected_rules = set(changes["added"]) | set(changes["changed"]) | set(changes["removed"])
+    affected_cases = sorted({c["id"] for c in suite["cases"] if depends(c) & affected_rules})
+    cores_path = local_path(root, "wiki-tests/cores.json", "wiki-tests")
+    cores = read_json(cores_path).get("cores", []) if cores_path.exists() else []
+    require(isinstance(cores, list), "cores must be an array")
+    affected_cores = sorted({core["core"] for core in cores
+                             if isinstance(core, dict) and set(core.get("cases", [])) & set(affected_cases)})
+    affected_mutations = sorted({m["id"] for m in suite["mutations"]
+                                 if mutation_target(m) in affected_rules
+                                 or set(m["cases"]) & set(affected_cases)})
+    outside = sorted(rid for rid in inventory.keys() & previous.keys()
+                     if previous[rid].get("page_hash") not in (None, inventory[rid]["page_hash"])
+                     and inventory[rid]["hash"] == previous[rid].get("hash"))
+    pages_added = sorted(set(pages) - set(previous_pages))
+    pages_removed = sorted(set(previous_pages) - set(pages))
+    generation = dict(changes, scan_version=scan, pages_added=pages_added, pages_removed=pages_removed,
+                      page_changed_outside_binding=outside,
+                      affected={"cases": affected_cases, "cores": affected_cores, "mutations": affected_mutations})
+    write_json_if_changed(local_path(root, "wiki-tests/reports/generation.json", "wiki-tests"), generation)
+
+    # Persistent review queue: an item stays pending until the agent marks it done
+    # against a scan version; reruns never drop unfinished items, and content changes
+    # produce a new fingerprint so an old completion cannot pose as current.
+    authoring_path = local_path(root, "wiki-tests/reports/authoring.json", "wiki-tests")
+    old = read_json(authoring_path) if authoring_path.exists() else {}
+    old_queue = old.get("review_queue", {}) if isinstance(old, dict) and isinstance(old.get("review_queue"), dict) else {}
+    old_items = [item for key in ("pending", "done", "auto_cleared") for item in old_queue.get(key, [])
+                 if isinstance(item, dict)]
+
+    def trigger(kind, ref, state):
+        return {"id": kind + ":" + ref, "kind": kind, "ref": ref, "detail": state,
+                "fingerprint": digest(json.dumps([kind, ref, state], sort_keys=True, ensure_ascii=False))}
+
+    triggers = []
+    for rid in sorted(inventory):
+        triggers.append(trigger("knowledge", rid, {
+            "page": inventory[rid]["page"], "hash": inventory[rid]["hash"], "page_hash": inventory[rid]["page_hash"],
+            "affected_cases": sorted(c["id"] for c in suite["cases"] if rid in depends(c)),
+            "affected_mutations": sorted(m["id"] for m in suite["mutations"] if mutation_target(m) == rid)}))
+    removed_refs = set(changes["removed"])
+    removed_refs |= {item["ref"] for item in old_items
+                     if item.get("kind") == "knowledge_removed" and item.get("ref") not in inventory}
+    for rid in sorted(removed_refs):
+        triggers.append(trigger("knowledge_removed", rid, {"status": "removed"}))
+    for item in missing:
+        triggers.append(trigger("binding", item["id"], item))
+    for page in pages:
+        triggers.append(trigger("page", page, {"hash": digest((root / page).read_text(encoding="utf-8"))}))
+
+    new_by_fp = {item["fingerprint"]: item for item in triggers}
+    old_by_fp = {item["fingerprint"]: item for item in old_items if "fingerprint" in item}
+    pending, done, cleared = [], [], []
+    for item in old_queue.get("pending", []):
+        if item.get("fingerprint") not in new_by_fp:
+            cleared.append(dict(item, status="auto_cleared", cleared_scan_version=old.get("scan_version")))
+    for item in old_queue.get("done", []):
+        if item.get("fingerprint") not in new_by_fp:
+            done.append(item)
+    for fingerprint, item in new_by_fp.items():
+        history = old_by_fp.get(fingerprint)
+        if history is not None and history.get("status") == "done":
+            done.append(dict(item, status="done", first_seen=history.get("first_seen", scan),
+                             reviewed_scan_version=history.get("reviewed_scan_version", old.get("scan_version"))))
+        else:
+            pending.append(dict(item, status="pending",
+                                first_seen=history.get("first_seen", scan) if history else scan))
+    queue = {"pending": sorted(pending, key=lambda item: item["id"]),
+             "done": sorted(done, key=lambda item: item["id"]),
+             "auto_cleared": sorted(cleared, key=lambda item: item["id"])}
     semantic_targets = {r for c in suite["cases"] if case_kind(c) == "semantic" for r in c["targets"]}
-    write_json(root / "wiki-tests/reports/authoring.json", {
+    write_json_if_changed(authoring_path, {
+        "scan_version": scan, "wiki_pages": sorted({r["page"] for r in rules.values()} | set(pages)),
         "pages_to_review": pages, "knowledge_without_semantic_cases": sorted(set(rules) - semantic_targets),
         "changed_knowledge": changes["changed"], "removed_knowledge": changes["removed"], "missing_bindings": missing,
-        "instructions": "Agent: use Wiki content only; never read Raw or follow source links. Identify core logic and author single-conclusion scenarios with Wiki-grounded rationale and a distinct failure mode. Preserve confirmed answers. Write cores.json and wiki-tests/quality.md with located gaps, ambiguities and conflicts; do not invent expected answers for unresolved scenarios. This queue is not a completed test set."})
-    print(json.dumps(dict(changes, cases=len(suite["cases"]), pages_without_rules=pages), ensure_ascii=False))
+        "affected": generation["affected"], "page_changed_outside_binding": outside,
+        "pages_added": pages_added, "pages_removed": pages_removed,
+        "review_queue": queue,
+        "instructions": "Agent: use Wiki content only; never read Raw or follow source links. Use application mode only for an explicitly stated task; otherwise default to QA. Process only pending queue items and their affected cases/cores/mutations; do not rewrite unrelated assets or confirmed answers. Reruns keep unfinished items; after semantic review set an item to done with the current scan_version — passing tests never mark review done, and changed content returns as a new pending item. New pages queue for review without automatic new cases. Write cores.json (mode/question/core/cases, plus task or unresolved) and wiki-tests/quality.md with located gaps, conflicts and answer boundaries; unsupported QA follow-ups are not automatically defects. Do not invent expected answers for unresolved scenarios."})
+    print(json.dumps(dict(changes, cases=len(suite["cases"]), pages_without_rules=pages,
+                          review_pending=len(queue["pending"])), ensure_ascii=False))
 
 
-def run_suite(root, sender=None):
+def run_suite(root, sender=None, verify_tests=False, case_ids=None):
     # Invalidate previous success before validation/network work can interrupt this run.
     destination = root / "wiki-tests/reports"
     local_path(root, "wiki-tests/reports", "wiki-tests")
@@ -380,16 +498,23 @@ def run_suite(root, sender=None):
     (destination / "latest.md").write_text("# Wiki knowledge tests\n\nRun incomplete; no current result.\n", encoding="utf-8")
     rules, pages = load_rules(root)
     suite = load_suite(root, rules)
-    cases = [c for c in suite["cases"] if c["status"] == "approved"]
-    require(bool(cases), "no approved cases; generate and review the test set first")
+    approved = [c for c in suite["cases"] if c["status"] == "approved"]
+    require(bool(approved), "no approved cases; generate and review the test set first")
+    if case_ids is not None:
+        unknown = sorted(set(case_ids) - {c["id"] for c in approved})
+        require(not unknown, "unknown or unapproved case IDs: " + ", ".join(unknown))
+        selected = [c for c in approved if c["id"] in set(case_ids)]
+    else:
+        selected = approved
+    require(bool(selected), "no cases selected")
     model = suite.get("model", "jev-latest")
     require(isinstance(model, str) and bool(model), "model must be a nonempty string")
-    if sender is None and any(case_kind(c) == "semantic" for c in cases):
+    if sender is None and any(case_kind(c) == "semantic" for c in selected):
         require(bool(os.environ.get("TYPESAFE_API_KEY")), "semantic tests require TYPESAFE_API_KEY; no cases were skipped")
     sender = sender or jev_request
     results = []
     reverse = {rid: [] for rid in rules}
-    for case in cases:
+    for case in selected:
         actual, details = execute_case(case, rules, model, sender)
         results.append({"id": case["id"], "question": case["question"], "expected": case["expected"],
                         "actual": actual, "passed": actual == case["expected"],
@@ -401,67 +526,78 @@ def run_suite(root, sender=None):
         for rid in case["targets"]:
             reverse[rid].append(case["id"])
     baseline = {r["id"]: r["passed"] for r in results}
-    by_id = {c["id"]: c for c in cases}
+    by_id = {c["id"]: c for c in selected}
     mutation_results = []
-    for mutation in suite["mutations"]:
-        if mutation["status"] != "approved":
-            continue
-        changed = copy.deepcopy(rules)
-        text_mutation = mutation.get("kind") == "text"
-        reference = mutation["target"] if text_mutation else mutation["fact"]
-        if text_mutation:
-            rid = mutation["target"]
-            valid = changed[rid]["text"].count(mutation["before"]) == 1
-        else:
-            rid, key = mutation["fact"].split(".")
-            valid = same(changed[rid]["facts"][key], mutation["before"])
-        if not valid:
-            mutation_results.append({"id": mutation["id"], "target": reference, "eligible": False,
-                                     "passed": False, "reason": "stale precondition", "checks": []})
-            continue
-        if text_mutation:
-            changed[rid]["text"] = changed[rid]["text"].replace(mutation["before"], mutation["after"], 1)
-        else:
-            changed[rid]["facts"][key] = mutation["after"]
-        checks = []
-        for cid in mutation["cases"]:
-            case = by_id[cid]
-            actual, details = execute_case(case, changed, model, sender)
-            checks.append({"case": cid, "actual": actual, "baseline_passed": baseline[cid],
-                           "detected": baseline[cid] and actual != case["expected"], **details})
-        eligible = any(c["baseline_passed"] for c in checks)
-        mutation_results.append({"id": mutation["id"], "target": reference, "eligible": eligible,
-                                 "passed": any(c["detected"] for c in checks), "checks": checks})
+    if verify_tests:
+        for mutation in suite["mutations"]:
+            if mutation["status"] != "approved":
+                continue
+            targeted = [cid for cid in mutation["cases"] if cid in by_id]
+            if not targeted:
+                continue
+            changed = copy.deepcopy(rules)
+            text_mutation = mutation.get("kind") == "text"
+            reference = mutation["target"] if text_mutation else mutation["fact"]
+            if text_mutation:
+                rid = mutation["target"]
+                valid = changed[rid]["text"].count(mutation["before"]) == 1
+            else:
+                rid, key = mutation["fact"].split(".")
+                valid = same(changed[rid]["facts"][key], mutation["before"])
+            if not valid:
+                mutation_results.append({"id": mutation["id"], "target": reference, "eligible": False,
+                                         "passed": False, "reason": "stale precondition", "checks": []})
+                continue
+            if text_mutation:
+                changed[rid]["text"] = changed[rid]["text"].replace(mutation["before"], mutation["after"], 1)
+            else:
+                changed[rid]["facts"][key] = mutation["after"]
+            checks = []
+            for cid in targeted:
+                case = by_id[cid]
+                actual, details = execute_case(case, changed, model, sender)
+                checks.append({"case": cid, "actual": actual, "baseline_passed": baseline[cid],
+                               "detected": baseline[cid] and actual != case["expected"], **details})
+            eligible = any(c["baseline_passed"] for c in checks)
+            mutation_results.append({"id": mutation["id"], "target": reference, "eligible": eligible,
+                                     "passed": any(c["detected"] for c in checks), "checks": checks})
+    scope = {"mode": "verify-tests" if verify_tests else "regression",
+             "mutations_run": verify_tests,
+             "case_filter": sorted(set(case_ids)) if case_ids is not None else None,
+             "selected_cases": len(selected), "approved_cases": len(approved),
+             "partial": case_ids is not None}
     covered = {rid for rid, ids in reverse.items() if ids}
     critical = {rid for rid, r in rules.items() if r.get("critical", False)}
     local_covered = set()
-    for c in cases:
+    for c in selected:
         if len({rules[r]["page"] for r in c["targets"] + c.get("context_rules", [])}) == 1:
             local_covered.update(c["targets"])
-    semantic_covered = {r for c in cases if case_kind(c) == "semantic" for r in c["targets"]}
+    semantic_covered = {r for c in selected if case_kind(c) == "semantic" for r in c["targets"]}
     def references(node):
         if "fact" in node:
             return {node["fact"]}
         return set().union(*(references(n) for n in node.get("args", [])))
     tested_facts = set().union(*({ref for ref in references(c["assertion"])
                                  if ref.split(".")[0] in c["targets"]}
-                                for c in cases if case_kind(c) == "deterministic"))
+                                for c in selected if case_kind(c) == "deterministic"))
     all_facts = {rid + "." + key for rid, rule in rules.items() for key in rule["facts"]}
     report = {"version": 1, "completed": True, "engine": "hybrid-v1", "suite_hash": digest(json.dumps(suite, sort_keys=True)),
               "rule_hashes": {rid: r["hash"] for rid, r in rules.items()},
+              "scope": scope,
               "cases": results, "mutations": mutation_results, "bindings": reverse,
               "page_bindings": {page: sorted({cid for rid, ids in reverse.items()
                                                if rules[rid]["page"] == page for cid in ids})
                                 for page in sorted({r["page"] for r in rules.values()})},
-              "pages_without_rules": pages, "draft_cases": len(suite["cases"]) - len(cases),
+              "pages_without_rules": pages, "draft_cases": len(suite["cases"]) - len(approved),
               "draft_mutations": sum(m["status"] == "draft" for m in suite["mutations"]),
               "coverage": {"rules": [len(covered), len(rules)],
                            "semantic_rules": [len(semantic_covered), len(rules)],
                            "deterministic_facts": [len(tested_facts), sum(len(r["facts"]) for r in rules.values())],
                            "critical_rules": [len(critical & local_covered), len(critical)],
                            "gold": [sum(r["passed"] for r in results), len(results)],
-                           "mutations": [sum(m["passed"] for m in mutation_results),
-                                         sum(m["eligible"] for m in mutation_results)]},
+                           "mutations": None if not verify_tests else
+                               [sum(m["passed"] for m in mutation_results),
+                                sum(m["eligible"] for m in mutation_results)]},
               "uncovered_rules": sorted(set(rules) - covered),
               "uncovered_semantic_rules": sorted(set(rules) - semantic_covered),
               "uncovered_facts": sorted(all_facts - tested_facts),
@@ -469,9 +605,17 @@ def run_suite(root, sender=None):
     destination = root / "wiki-tests/reports"
     write_json(destination / "latest.json", report)
     failures = [r for r in results if not r["passed"]]
-    lines = ["# Wiki knowledge tests", "", "Engine: hybrid-v1", "",
-             "Cases: {} passed, {} failed. Mutations: {} failed.".format(
-                 len(results) - len(failures), len(failures), sum(not m["passed"] for m in mutation_results)),
+    if scope["partial"]:
+        scope_text = "verify-tests — baseline plus approved mutations for selected cases: {} ({} of {} approved; partial run).".format(
+            ", ".join(scope["case_filter"]), len(selected), len(approved))
+    elif verify_tests:
+        scope_text = "verify-tests — baseline plus approved mutations ({} approved cases).".format(len(approved))
+    else:
+        scope_text = "regression — baseline only; mutations not run ({} approved cases).".format(len(approved))
+    lines = ["# Wiki knowledge tests", "", "Engine: hybrid-v1", "", scope_text, "",
+             "Cases: {} passed, {} failed. Mutations: {}.".format(
+                 len(results) - len(failures), len(failures),
+                 "not run" if not verify_tests else "{} failed".format(sum(not m["passed"] for m in mutation_results))),
              "", "## Failed scenarios", ""]
     for result in failures:
         lines += ["### " + result["id"], "", result["question"], "",
@@ -484,26 +628,39 @@ def run_suite(root, sender=None):
     if not failures:
         lines += ["None.", ""]
     lines += ["## Mutation failures", ""]
-    for mutation in mutation_results:
-        if not mutation["passed"]:
-            lines.append("- {} ({}): {}".format(mutation["id"], mutation["target"],
-                         mutation.get("reason", "answer did not flip" if mutation["eligible"] else "no passing baseline")))
-    if all(m["passed"] for m in mutation_results):
-        lines.append("None.")
+    if not verify_tests:
+        lines.append("Not run (regression mode). Use `--verify-tests` to execute approved mutations.")
+    elif all(m["passed"] for m in mutation_results):
+        lines.append("None." if mutation_results else
+                     "No approved mutations target the selected cases; the rest were not executed.")
+    else:
+        for mutation in mutation_results:
+            if not mutation["passed"]:
+                lines.append("- {} ({}): {}".format(mutation["id"], mutation["target"],
+                             mutation.get("reason", "answer did not flip" if mutation["eligible"] else "no passing baseline")))
     lines += ["", "## Authoring quality review", "",
               "Core scenarios and unresolved Wiki gaps/conflicts are reviewed separately in `quality.md`.",
               "A passing run does not resolve those findings.", "", "## Inventory statistics (not completeness)", ""]
     labels = {"rules": "Registered knowledge with any test (not completeness)", "critical_rules": "Critical rule local bindings",
               "semantic_rules": "Knowledge with semantic tests", "deterministic_facts": "Structured facts referenced by assertions",
               "gold": "Test pass rate", "mutations": "Mutation detection rate"}
-    for key, (numerator, denominator) in report["coverage"].items():
+    for key, fraction in report["coverage"].items():
         label = labels[key]
-        lines.append("- {}: {}".format(label, "{}/{} ({:.1%})".format(numerator, denominator, numerator / denominator)
-                                      if denominator else "N/A"))
+        if fraction is None:
+            lines.append("- {}: not run in this scope".format(label))
+        else:
+            numerator, denominator = fraction
+            lines.append("- {}: {}".format(label, "{}/{} ({:.1%})".format(numerator, denominator, numerator / denominator)
+                                          if denominator else "N/A"))
     lines += ["", "## Cases", ""] + ["- {}: {} (expected {}, actual {})".format(
         r["id"], "PASS" if r["passed"] else "FAIL", r["expected"], r["actual"]) for r in results]
-    lines += ["", "## Mutations", ""] + ["- {}: {}{}".format(m["id"], "PASS" if m["passed"] else "FAIL",
-        " ({}; excluded from rate)".format(m.get("reason", "no passing baseline")) if not m["eligible"] else "") for m in mutation_results]
+    lines += ["", "## Mutations", ""]
+    if not verify_tests:
+        lines.append("Not run (regression mode).")
+    else:
+        lines += ["- {}: {}{}".format(m["id"], "PASS" if m["passed"] else "FAIL",
+                  " ({}; excluded from rate)".format(m.get("reason", "no passing baseline")) if not m["eligible"] else "")
+                  for m in mutation_results] or ["No approved mutations target the selected cases."]
     lines += ["", "## Rule → cases", ""] + ["- {}: {}".format(rid, ", ".join(ids) or "UNCOVERED")
                                                   for rid, ids in reverse.items()]
     lines += ["", "## Page → cases", ""] + ["- {}: {}".format(page, ", ".join(ids) or "UNCOVERED")
@@ -515,13 +672,18 @@ def run_suite(root, sender=None):
         report["draft_cases"], report["draft_mutations"])]
     (destination / "latest.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print("\n".join(lines[:8]))
-    return 0 if all(r["passed"] for r in results) and all(m["passed"] for m in mutation_results) else 1
+    baseline_passed = all(r["passed"] for r in results)
+    return 0 if baseline_passed and (not verify_tests or all(m["passed"] for m in mutation_results)) else 1
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("action", choices=["generate", "check", "run"])
     parser.add_argument("root", type=Path)
+    parser.add_argument("--verify-tests", action="store_true",
+                        help="execute approved mutations in addition to the baseline")
+    parser.add_argument("--case", action="append", dest="case_ids", metavar="CASE_ID",
+                        help="restrict verification to this case ID; repeatable; requires --verify-tests")
     args = parser.parse_args(argv)
     root = args.root.resolve()
     try:
@@ -533,7 +695,8 @@ def main(argv=None):
             load_suite(root, rules)
             print("0 test asset issue(s)")
             return 0
-        return run_suite(root)
+        require(not (args.case_ids and not args.verify_tests), "--case requires --verify-tests")
+        return run_suite(root, verify_tests=args.verify_tests, case_ids=args.case_ids)
     except (ValueError, KeyError, TypeError, OSError, RecursionError) as exc:
         print("wiki-test: " + str(exc), file=sys.stderr)
         return 2

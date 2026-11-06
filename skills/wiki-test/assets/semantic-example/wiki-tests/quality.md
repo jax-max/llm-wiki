@@ -1,8 +1,9 @@
 # Wiki quality review
 
-Reviewed: `wiki/domains/shop/rules/window.md:8` and `wiki/domains/shop/rules/exclusion.md:8`.
-The approved scenarios are ordinary goods at five days, ordinary goods at ten days,
-and custom goods at five days. The window explicitly denies late returns and
-explicitly delegates custom goods to the exception rule. No unresolved issue was
-found within these scenarios. This is an authoring review, not a live-model result.
-The review used only Wiki; no source links were followed.
+QA mode, Wiki only (`wiki/domains/shop/rules/window.md:8`,
+`wiki/domains/shop/rules/exclusion.md:8`); no source links followed. For the
+approved scenarios — ordinary goods at five and ten days, custom goods at five
+days — the window denies late returns and delegates custom goods to the exception
+rule. No unresolved core scenario was found within this scope; approval reflects
+Wiki support, not a live-model result. Scope and scan version are recorded in
+`reports/authoring.json`.

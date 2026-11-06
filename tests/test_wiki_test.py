@@ -49,7 +49,7 @@ class KnowledgeTestsTest(unittest.TestCase):
     def test_baseline_mutation_coverage_and_no_wiki_changes(self):
         before = self.page.read_bytes()
         suite_before = (self.root / "wiki-tests/suite.json").read_bytes()
-        self.assertEqual(wt.run_suite(self.root), 0)
+        self.assertEqual(wt.run_suite(self.root, verify_tests=True), 0)
         report = self.report()
         self.assertEqual(report["coverage"]["mutations"], [1, 1])
         self.assertEqual(report["coverage"]["critical_rules"], [1, 1])
@@ -60,20 +60,20 @@ class KnowledgeTestsTest(unittest.TestCase):
     def test_current_wiki_change_fails_without_using_old_expected_answers(self):
         self.rule["facts"]["days"] = 3
         self.save_rule()
-        self.assertEqual(wt.run_suite(self.root), 1)
+        self.assertEqual(wt.run_suite(self.root, verify_tests=True), 1)
         self.assertFalse(self.report()["cases"][0]["passed"])
         self.assertEqual(self.report()["mutations"][0]["reason"], "stale precondition")
 
     def test_failing_baseline_cannot_kill_mutation(self):
         self.case["expected"] = False
         self.save_suite()
-        self.assertEqual(wt.run_suite(self.root), 1)
+        self.assertEqual(wt.run_suite(self.root, verify_tests=True), 1)
         self.assertEqual(self.report()["coverage"]["mutations"], [0, 0])
 
     def test_insensitive_mutation_fails(self):
         self.mutation["after"] = 8
         self.save_suite()
-        self.assertEqual(wt.run_suite(self.root), 1)
+        self.assertEqual(wt.run_suite(self.root, verify_tests=True), 1)
         self.assertEqual(self.report()["coverage"]["mutations"], [0, 1])
 
     def test_generation_preserves_expected_answers_and_produces_drafts_idempotently(self):
@@ -266,6 +266,72 @@ class KnowledgeTestsTest(unittest.TestCase):
         self.mutation.update(kind="text", target="returns", before="seven days", after="three days")
         self.save_suite()
 
+    def test_regression_skips_mutations_and_verify_executes_them(self):
+        self.semantic_fixture()
+        calls = []
+        def sender(payload):
+            calls.append(payload)
+            flipped = "three days" in payload["state"]["wiki"][0]["text"]
+            return {"model": "test-stub", "answers": {"judgment": {"noul": 0.1 if flipped else 0.9}}}
+        self.assertEqual(wt.run_suite(self.root, sender=sender), 0)
+        self.assertEqual(len(calls), 1)
+        report = self.report()
+        self.assertEqual(report["scope"]["mode"], "regression")
+        self.assertFalse(report["scope"]["mutations_run"])
+        self.assertEqual(report["mutations"], [])
+        self.assertIsNone(report["coverage"]["mutations"])
+        self.assertIn("mutations not run", (self.root / "wiki-tests/reports/latest.md").read_text())
+        self.assertEqual(wt.run_suite(self.root, sender=sender, verify_tests=True), 0)
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(self.report()["scope"]["mode"], "verify-tests")
+        self.assertEqual(self.report()["coverage"]["mutations"], [1, 1])
+
+    def test_stale_mutation_text_fails_verify_but_not_regression(self):
+        self.semantic_fixture()
+        self.mutation["before"] = "text that no longer exists"
+        self.save_suite()
+        self.assertEqual(wt.run_suite(self.root, sender=lambda p: {
+            "model": "stub", "answers": {"judgment": {"noul": 0.9}}}), 0)
+        self.assertEqual(wt.run_suite(self.root, verify_tests=True, sender=lambda p: {
+            "model": "stub", "answers": {"judgment": {"noul": 0.9}}}), 1)
+        report = self.report()
+        self.assertTrue(report["scope"]["mutations_run"])
+        self.assertEqual(report["mutations"][0]["reason"], "stale precondition")
+
+    def test_case_selection_restricts_baseline_and_mutation_checks(self):
+        second = copy.deepcopy(self.case)
+        second.update(id="day-six")
+        self.mutation["cases"] = ["day-five", "day-six"]
+        self.suite["cases"].append(second)
+        self.save_suite()
+        calls = []
+        def sender(payload):
+            calls.append(payload)
+            return {"model": "test-stub", "answers": {"judgment": {"noul": 0.9}}}
+        self.assertEqual(wt.run_suite(self.root, sender=sender, verify_tests=True, case_ids=["day-five"]), 0)
+        report = self.report()
+        self.assertEqual([r["id"] for r in report["cases"]], ["day-five"])
+        self.assertEqual(report["scope"]["partial"], True)
+        self.assertEqual(report["scope"]["selected_cases"], 1)
+        self.assertEqual(report["scope"]["approved_cases"], 2)
+        checks = report["mutations"][0]["checks"]
+        self.assertEqual([c["case"] for c in checks], ["day-five"])
+        text = (self.root / "wiki-tests/reports/latest.md").read_text()
+        self.assertIn("1 of 2 approved; partial run", text)
+        self.assertIn("day-five", text)
+
+    def test_case_selection_rejects_unknown_draft_and_requires_verify(self):
+        draft = copy.deepcopy(self.case)
+        draft.update(id="draft-case", status="draft")
+        self.suite["cases"].append(draft)
+        self.save_suite()
+        for ids in (["missing-id"], ["draft-case"]):
+            with self.assertRaisesRegex(ValueError, "unknown or unapproved"):
+                wt.run_suite(self.root, case_ids=ids)
+        self.assertEqual(wt.main(["run", str(self.root), "--case", "day-five"]), 2)
+        with patch.dict("os.environ", {"TYPESAFE_API_KEY": "k"}):
+            self.assertEqual(wt.main(["run", str(self.root), "--verify-tests", "--case", "missing"]), 2)
+
     def test_semantic_payload_uses_current_prose_and_question_without_answer_leak(self):
         self.semantic_fixture()
         rules, _ = wt.load_rules(self.root)
@@ -293,7 +359,7 @@ class KnowledgeTestsTest(unittest.TestCase):
             calls.append(payload)
             return {"model": "test-stub", "answers": {"judgment": {"noul": 0.9 if len(calls) == 1 else 0.1}}}
         original = self.page.read_bytes()
-        self.assertEqual(wt.run_suite(self.root, sender=sender), 0)
+        self.assertEqual(wt.run_suite(self.root, sender=sender, verify_tests=True), 0)
         self.assertEqual(len(calls), 2)
         self.assertIn("seven days", calls[0]["state"]["wiki"][0]["text"])
         self.assertIn("three days", calls[1]["state"]["wiki"][0]["text"])
@@ -345,7 +411,7 @@ class KnowledgeTestsTest(unittest.TestCase):
         def sender(payload):
             calls.append(payload)
             return {"model": "test-stub", "answers": {"judgment": {"noul": 0.9 if len(calls) == 1 else 0.1}}}
-        self.assertEqual(wt.run_suite(self.root, sender=sender), 0)
+        self.assertEqual(wt.run_suite(self.root, sender=sender, verify_tests=True), 0)
         self.assertEqual({r["kind"] for r in self.report()["cases"]}, {"semantic", "deterministic"})
         self.assertEqual(len(calls), 2)
         self.assertEqual(self.report()["coverage"]["deterministic_facts"], [1, 2])
@@ -357,16 +423,141 @@ class KnowledgeTestsTest(unittest.TestCase):
         change = wt.read_json(self.root / "wiki-tests/reports/generation.json")
         self.assertEqual(change["changed"], ["returns"])
 
+    def test_generate_lists_affected_cases_cores_and_context_dependencies(self):
+        other = copy.deepcopy(self.rule)
+        other.update(id="account", critical=False, facts={"active": True})
+        (self.root / "wiki/domains/shop/account.md").write_text("```wiki-rule\n" + json.dumps(other) + "\n```\n")
+        self.case["context_rules"] = ["account"]
+        self.case["assertion"] = {"op": "all", "args": [self.case["assertion"], {"fact": "account.active"}]}
+        wt.write_json(self.root / "wiki-tests/cores.json",
+                      {"cores": [{"core": "期限与账号状态", "mode": "qa", "question": "谁可以退货？",
+                                  "cases": ["day-five"]}]})
+        self.save_suite()
+        wt.generate(self.root)
+        (self.root / "wiki/domains/shop/account.md").write_text("```wiki-rule\n" + json.dumps(other) + "\n```\nUpdated.\n")
+        wt.generate(self.root)
+        generation = wt.read_json(self.root / "wiki-tests/reports/generation.json")
+        self.assertEqual(generation["changed"], ["account"])
+        # The snapshot draft generated for account.active is affected as well.
+        self.assertEqual(generation["affected"]["cases"], ["day-five", "snapshot-account-active"])
+        self.assertEqual(generation["affected"]["cores"], ["期限与账号状态"])
+        self.assertEqual(generation["affected"]["mutations"], ["mutate-account-active", "shorten"])
+
+    def test_page_change_outside_binding_requires_review(self):
+        self.semantic_fixture()
+        wt.generate(self.root)
+        queue = wt.read_json(self.root / "wiki-tests/reports/authoring.json")["review_queue"]
+        pending_before = {item["ref"] for item in queue["pending"]}
+        # Wording change outside the bound fragment: only review, no structural change entry.
+        self.page.write_text(self.page.read_text() + "\n新增的跨页约束说明。\n")
+        wt.generate(self.root)
+        authoring = wt.read_json(self.root / "wiki-tests/reports/authoring.json")
+        self.assertEqual(authoring["page_changed_outside_binding"], ["returns"])
+        self.assertEqual(authoring["changed_knowledge"], [])
+        refs = [item["ref"] for item in authoring["review_queue"]["pending"]]
+        self.assertIn("returns", refs)
+        self.assertIn("returns", pending_before)
+
+    def test_review_queue_persists_across_reruns_and_auto_clears(self):
+        self.semantic_fixture()
+        wt.generate(self.root)
+        self.page.write_text("# Returns\n\nProse was rewritten entirely.")
+        wt.generate(self.root)
+        queue = wt.read_json(self.root / "wiki-tests/reports/authoring.json")["review_queue"]
+        self.assertIn("binding:returns", [item["id"] for item in queue["pending"]])
+        # Rerunning generate must not drop the unfinished review item.
+        wt.generate(self.root)
+        queue = wt.read_json(self.root / "wiki-tests/reports/authoring.json")["review_queue"]
+        self.assertIn("binding:returns", [item["id"] for item in queue["pending"]])
+        self.assertEqual(queue["auto_cleared"], [])
+        # Repairing the binding clears the item into the visible auto_cleared list.
+        self.suite["knowledge"][0].update(lines=[3, 3], anchors=["Prose was rewritten entirely."] * 2)
+        self.save_suite()
+        wt.generate(self.root)
+        queue = wt.read_json(self.root / "wiki-tests/reports/authoring.json")["review_queue"]
+        self.assertNotIn("binding:returns", [item["id"] for item in queue["pending"]])
+        self.assertIn("binding:returns", [item["id"] for item in queue["auto_cleared"]])
+
+    def test_review_done_returns_as_pending_after_content_change(self):
+        self.semantic_fixture()
+        wt.generate(self.root)
+        path = self.root / "wiki-tests/reports/authoring.json"
+        authoring = wt.read_json(path)
+        item = next(i for i in authoring["review_queue"]["pending"] if i["ref"] == "returns")
+        item.update(status="done", reviewed_scan_version=authoring["scan_version"])
+        authoring["review_queue"]["pending"] = [i for i in authoring["review_queue"]["pending"] if i is not item]
+        authoring["review_queue"]["done"].append(item)
+        wt.write_json(path, authoring)
+        wt.generate(self.root)
+        queue = wt.read_json(path)["review_queue"]
+        self.assertIn("knowledge:returns", [item["id"] for item in queue["done"]])
+        self.assertNotIn("knowledge:returns", [item["id"] for item in queue["pending"]])
+        # A wording change in the bound text invalidates the completed review.
+        self.page.write_text("# Returns\n\nReturns allowed within three days only.\n")
+        self.suite["knowledge"][0].update(lines=[3, 3], anchors=["Returns allowed within three days only."] * 2)
+        self.save_suite()
+        wt.generate(self.root)
+        queue = wt.read_json(path)["review_queue"]
+        self.assertIn("knowledge:returns", [item["id"] for item in queue["pending"]])
+        self.assertTrue(all(item["id"] != "knowledge:returns" or item["fingerprint"] != item.get("old")
+                            for item in queue["done"]))
+
+    def test_generate_rewrites_no_unchanged_assets(self):
+        wt.generate(self.root)
+        # Reports may refresh each scan; tracked assets must stay byte-identical.
+        paths = [self.root / "wiki-tests/suite.json", self.root / "wiki-tests/inventory.json"]
+        before = [p.read_bytes() for p in paths]
+        wt.generate(self.root)
+        self.assertEqual(before, [p.read_bytes() for p in paths])
+
+    def test_new_prose_page_queues_review_without_new_cases(self):
+        wt.generate(self.root)
+        cases = len(wt.read_json(self.root / "wiki-tests/suite.json")["cases"])
+        (self.root / "wiki/domains/shop/handling.md").write_text("纯散文页面，无规则块。\n")
+        wt.generate(self.root)
+        suite = wt.read_json(self.root / "wiki-tests/suite.json")
+        self.assertEqual(len(suite["cases"]), cases)
+        authoring = wt.read_json(self.root / "wiki-tests/reports/authoring.json")
+        self.assertIn("wiki/domains/shop/handling.md", authoring["pages_to_review"])
+        self.assertIn("page:wiki/domains/shop/handling.md",
+                      [item["id"] for item in authoring["review_queue"]["pending"]])
+
+    def test_shortened_page_and_ambiguous_anchor_reported_safely(self):
+        self.semantic_fixture()
+        wt.generate(self.root)
+        suite_path = self.root / "wiki-tests/suite.json"
+        # Page shortened below the bound lines: report, never widen or guess the binding.
+        self.page.write_text("# Returns\n")
+        wt.generate(self.root)
+        authoring = wt.read_json(self.root / "wiki-tests/reports/authoring.json")
+        self.assertEqual(authoring["missing_bindings"],
+                         [{"id": "returns", "reason": "line binding beyond page end",
+                           "page": "wiki/domains/shop/returns.md"}])
+        self.assertEqual(wt.read_json(suite_path)["knowledge"][0]["lines"], [3, 3])
+        # Ambiguous anchors: the bound line drifted and the anchor text occurs twice.
+        self.page.write_text("# Returns\n\nNote.\n\nReturns allowed within seven days.\n\nReturns allowed within seven days.\n")
+        wt.generate(self.root)
+        authoring = wt.read_json(self.root / "wiki-tests/reports/authoring.json")
+        self.assertEqual(authoring["missing_bindings"],
+                         [{"id": "returns", "reason": "ambiguous anchor",
+                           "page": "wiki/domains/shop/returns.md"}])
+        self.assertEqual(wt.read_json(suite_path)["knowledge"][0]["lines"], [3, 3])
+
     def test_generate_reports_deleted_semantic_page_without_dropping_cases(self):
         self.semantic_fixture()
         wt.generate(self.root)
         before = (self.root / "wiki-tests/suite.json").read_bytes()
         self.page.unlink()
         wt.generate(self.root)
-        queue = wt.read_json(self.root / "wiki-tests/reports/authoring.json")
-        self.assertEqual(queue["removed_knowledge"], ["returns"])
-        self.assertEqual(queue["missing_bindings"][0]["reason"], "missing page")
+        authoring = wt.read_json(self.root / "wiki-tests/reports/authoring.json")
+        self.assertEqual(authoring["removed_knowledge"], ["returns"])
+        self.assertEqual(authoring["missing_bindings"][0]["reason"], "missing page")
         self.assertEqual((self.root / "wiki-tests/suite.json").read_bytes(), before)
+        # The removal stays queued across reruns until the agent resolves it.
+        wt.generate(self.root)
+        queue = wt.read_json(self.root / "wiki-tests/reports/authoring.json")["review_queue"]
+        self.assertIn("knowledge_removed:returns", [item["id"] for item in queue["pending"]])
+        self.assertEqual(queue["auto_cleared"], [])
 
     def test_incomplete_run_cannot_leave_previous_success_as_latest(self):
         wt.run_suite(self.root)
@@ -413,11 +604,18 @@ class KnowledgeTestsTest(unittest.TestCase):
             rules, _ = wt.load_rules(root)
             suite = wt.load_suite(root, rules)
             cores = wt.read_json(root / "wiki-tests/cores.json")["cores"]
+            # cores.json keeps only mapping fields; wiki basis lives in case rationale,
+            # mutation ownership is derived from suite.json case references.
+            for core in cores:
+                self.assertLessEqual(set(core), {"core", "mode", "question", "cases", "unresolved", "task"})
+                self.assertIn(core["mode"], {"qa", "application"})
+                self.assertTrue(core["question"].strip())
             self.assertCountEqual([cid for core in cores for cid in core["cases"]],
                                   [c["id"] for c in suite["cases"]])
-            self.assertCountEqual([mid for core in cores for mid in core["mutations"]],
-                                  [m["id"] for m in suite["mutations"]])
+            mapped = {cid for core in cores for cid in core["cases"]}
             for mutation in suite["mutations"]:
+                self.assertTrue(set(mutation["cases"]) & mapped,
+                                "mutation not derivable from core cases: " + mutation["id"])
                 self.assertEqual(rules[mutation["target"]]["text"].count(mutation["before"]), 1)
 
     def test_demo_order_mutations_do_not_leave_opposite_order_in_context(self):

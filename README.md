@@ -291,21 +291,28 @@ conflicts instead of approving an invented answer.
 
 ```sh
 python3 skills/wiki-test/scripts/wiki_test.py generate /path/to/your-project
-# Agent reads Wiki only and completes cases, cores.json and wiki-tests/quality.md.
+# Agent reads Wiki only, works the pending review items, and completes cases,
+# cores.json and wiki-tests/quality.md.
 python3 skills/wiki-test/scripts/wiki_test.py check /path/to/your-project
-python3 skills/wiki-test/scripts/wiki_test.py run /path/to/your-project
+python3 skills/wiki-test/scripts/wiki_test.py run /path/to/your-project            # regression
+python3 skills/wiki-test/scripts/wiki_test.py run /path/to/your-project --verify-tests
+python3 skills/wiki-test/scripts/wiki_test.py run /path/to/your-project --verify-tests --case <id>
 ```
 
-The generate script supplies inventory and drafts; the Skill performs semantic
-review. Natural-language judgments use Jev with `TYPESAFE_API_KEY`; computable
-assertions run locally. Ordinary prose needs no JSON rewrite. Execution runs all
-approved cases and mutations, applying mutations only in memory. Existing expected
-answers never change automatically with the prose.
+The generate script supplies inventory, drafts and a change-triggered review
+queue (affected cases/cores/mutations, bindings, pages); the Skill performs
+semantic review and marks items done per scan version. Natural-language
+judgments use Jev with `TYPESAFE_API_KEY`; computable assertions run locally.
+Ordinary prose needs no JSON rewrite. The default `run` executes approved
+baselines only; `--verify-tests` additionally applies approved mutations in
+memory, and `--case` verifies selected cases. Existing expected answers never
+change automatically with the prose.
 
 Version `wiki-tests/suite.json`, `cores.json` and `inventory.json`.
-`wiki-tests/quality.md` records reviewed scope and unresolved core scenarios;
-`latest.md` prioritizes failed scenarios and Wiki locations, with statistics as
-auxiliary inventory only. A passing run does not resolve quality findings or
-establish sentence/page completeness. Reports may be ignored or retained as review
+`wiki-tests/quality.md` keeps located findings with stable IDs; scope and scan
+version live in `reports/authoring.json`. `latest.md` prioritizes failed
+scenarios, Wiki locations and the run scope, with statistics as auxiliary
+inventory only. A passing run does not resolve quality findings or establish
+sentence/page completeness. Reports may be ignored or retained as review
 artifacts. See the [Skill](skills/wiki-test/SKILL.md), [format](skills/wiki-test/references/test-format.md)
 and [acceptance steps](skills/wiki-test/references/acceptance.md).
