@@ -4,11 +4,11 @@
   "knowledge": [
     {
       "id": "activity-admission",
-      "page": "wiki/domains/lottery-platform/rules/activity-admission.md",
+      "page": "wiki/rules/activity-admission.md",
       "critical": true,
       "lines": [
-        11,
-        15
+        12,
+        16
       ],
       "anchors": [
         "活动准入上下文集中管理用户参与抽奖活动的限制条件，并在用户参与抽奖流程中于实际抽奖前执行检查。",
@@ -17,11 +17,11 @@
     },
     {
       "id": "risk-control",
-      "page": "wiki/domains/lottery-platform/rules/participation-risk-control.md",
+      "page": "wiki/rules/participation-risk-control.md",
       "critical": true,
       "lines": [
-        11,
-        15
+        12,
+        16
       ],
       "anchors": [
         "风控上下文用于应对刷单行为，并在用户参与抽奖流程中先于活动准入和抽奖执行。",
@@ -30,10 +30,10 @@
     },
     {
       "id": "attempt-counting",
-      "page": "wiki/domains/lottery-platform/rules/lottery-attempt-counting.md",
+      "page": "wiki/rules/lottery-attempt-counting.md",
       "lines": [
-        11,
-        15
+        12,
+        16
       ],
       "anchors": [
         "计数上下文是为抽奖、风控和活动准入提供访问接口的通用上下文；抽奖领域服务在读取抽奖活动聚合后增加抽奖计数。",
@@ -42,11 +42,11 @@
     },
     {
       "id": "award-selection",
-      "page": "wiki/domains/lottery-platform/rules/award-selection.md",
+      "page": "wiki/rules/award-selection.md",
       "critical": true,
       "lines": [
-        11,
-        15
+        12,
+        16
       ],
       "anchors": [
         "该机制先依据抽奖场景为用户匹配可发奖的奖池，再在奖池内按运营预先配置的概率选择奖品。场景携带城市信息时按城市匹配；否则按抽奖得分匹配。",
@@ -55,11 +55,11 @@
     },
     {
       "id": "participation-flow",
-      "page": "wiki/domains/lottery-platform/workflows/user-participation.md",
+      "page": "wiki/workflows/user-participation.md",
       "critical": true,
       "lines": [
-        11,
-        22
+        12,
+        23
       ],
       "anchors": [
         "用户从活动页面参与抽奖时，以用户、抽奖活动和抽奖场景为边界，应用服务负责协调登录校验、风控、活动准入和抽奖领域服务；抽奖成功时返回奖品信息，否则返回错误结果。领域服务内部读取抽奖活动聚合、增加抽奖计数、选择适配奖池和奖品，并调用发奖服务。",
@@ -68,10 +68,10 @@
     },
     {
       "id": "lottery-activity",
-      "page": "wiki/domains/lottery-platform/entities/lottery-activity.md",
+      "page": "wiki/entities/lottery-activity.md",
       "lines": [
-        11,
-        17
+        12,
+        18
       ],
       "anchors": [
         "抽奖活动是抽奖平台的核心业务对象，由运营在 M 端配置；一个抽奖活动包含多个奖品，可以针对一个或多个用户群体——通过为不同群体配置各自的奖池实现。C 端用户通过活动页面参与。工程上由聚合根 `DrawLottery` 承载：持有抽奖活动的 `lotteryId` 与该活动下所有可用奖池的列表，`setLotteryId` 会对非法的抽奖 id 抛出 `IllegalArgumentException`。",
@@ -80,10 +80,10 @@
     },
     {
       "id": "award-pool",
-      "page": "wiki/domains/lottery-platform/entities/award-pool.md",
+      "page": "wiki/entities/award-pool.md",
       "lines": [
-        11,
-        13
+        12,
+        14
       ],
       "anchors": [
         "奖池是抽奖活动与奖品之间的配置单元：一个奖池针对一个特定的用户群体（`UserGroup`）设置多个奖品。用户群体有多种区别方式，如按照用户所在城市区分、按照新老客区分。工程上奖池被建模为 `AwardPool`，字段包括奖池支持的城市 `cityIds`、奖池支持的得分 `scores`、奖池匹配的用户类型 `userGroupType`，以及奖池中包含的奖品列表。",
@@ -92,10 +92,10 @@
     },
     {
       "id": "stock-independence",
-      "page": "wiki/domains/lottery-platform/entities/stock.md",
+      "page": "wiki/entities/stock.md",
       "lines": [
-        11,
-        13
+        12,
+        14
       ],
       "anchors": [
         "库存是抽奖平台中管理发放内容数量与核销的业务对象，被划分为独立的库存上下文。库存的行为与奖品本身相对解耦，库存的关注点更多是库存内容的核销；且库存本身具备通用性，可以被奖品之外的内容使用。",
@@ -104,10 +104,10 @@
     },
     {
       "id": "user-context",
-      "page": "wiki/domains/lottery-platform/entities/user.md",
+      "page": "wiki/entities/user.md",
       "lines": [
-        11,
-        13
+        12,
+        14
       ],
       "anchors": [
         "抽奖平台的用户划分为运营和用户：运营对抽奖活动的配置十分复杂但相对低频；用户通过活动页面参与不同类型的抽奖活动，对这些配置的使用是高频次且无感知的。C 端还存在一些刷单行为，活动通过风控配置限制用户参与抽奖的频率。",
@@ -116,10 +116,10 @@
     },
     {
       "id": "award-issued-event",
-      "page": "wiki/domains/lottery-platform/events/award-issued.md",
+      "page": "wiki/events/award-issued.md",
       "lines": [
-        10,
-        12
+        11,
+        13
       ],
       "anchors": [
         "抽奖服务选中奖品后调用发奖服务，将选中的奖品发放给用户。本页将原文描述的发奖行为建模为事件类型，展示 Event 如何连接参与者、业务对象与工作流；不代表某次奖品已成功到账的真实记录。",
@@ -128,7 +128,7 @@
     },
     {
       "id": "domain-contexts",
-      "page": "wiki/domains/lottery-platform/overview.md",
+      "page": "wiki/overview.md",
       "lines": [
         7,
         7

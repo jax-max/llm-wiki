@@ -4,7 +4,8 @@ import IngestDialog from "./ingest/IngestDialog";
 import Catalog from "./Catalog";
 import WikiSelector from "./WikiSelector";
 import {
-  pageDomain,
+  isKnowledgePage,
+  isSystemPage,
   pageType,
   type CatalogPage,
   type AppliedChange,
@@ -210,22 +211,20 @@ function Workspace({ onSwitch }: { onSwitch: () => void }) {
   const knowledgePage = catalogPages.find(
     (page) => page.path === knowledge.doc?.path,
   );
-  const domain = knowledgePage && pageDomain(knowledgePage);
+  const inDomain = knowledgePage && isKnowledgePage(knowledgePage);
   const domainTitle =
-    domain &&
-    (catalogPages.find(
-      (page) => page.path === `wiki/domains/${domain}/overview.md`,
-    )?.title ||
-      domain);
+    inDomain &&
+    (catalogPages.find((page) => page.path === "wiki/overview.md")?.title ||
+      config?.name);
   const breadcrumb = knowledge.doc
     ? [
         domainTitle ||
           (knowledge.doc.path.startsWith("raw/")
             ? t.catalog.raw
-            : t.catalog.system),
-        ...(domain && knowledgePage
-          ? [t.catalog.types[pageType(knowledgePage)]]
-          : []),
+            : isSystemPage(knowledge.doc.path)
+              ? t.catalog.system
+              : config?.name || t.catalog.system),
+        ...(inDomain ? [t.catalog.types[pageType(knowledgePage)]] : []),
         knowledge.doc.title,
       ].join(" / ")
     : t.views.knowledge;
@@ -304,6 +303,7 @@ function Workspace({ onSwitch }: { onSwitch: () => void }) {
           <Catalog
             t={t}
             locale={locale}
+            name={config?.name}
             pages={catalogPages}
             updates={updates}
             revealUpdates={revealUpdates}

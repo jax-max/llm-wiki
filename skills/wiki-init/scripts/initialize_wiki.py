@@ -31,9 +31,10 @@ Recording effective dates does not provide automatic temporal-validity reasoning
 
 ## Required Metadata
 
-`Type`, `Raw`, and `Updated` are required blockquote fields on every typed
-page. `Raw` must contain one or more links that resolve under `raw/`. Domain
-is inferred from `domains/<domain>/...`; `Aliases` and `Sources` are optional.
+`Type`, `Raw`, `Updated`, and `Domain` are required blockquote fields on every
+typed page. `Raw` must contain one or more links that resolve under `raw/`.
+Each wiki project is one bounded domain: `Domain` must match the `Domain` of
+`wiki/overview.md`; `Aliases` and `Sources` are optional.
 `Updated` is the page's last compile date, written at every create or
 recompile, and must not predate the latest ingest of any linked Raw — the
 evidence checker enforces this against ingest dates anchored by SHA-256
@@ -63,8 +64,10 @@ duplicate reverse links in pages. An inverse of `None` means the verb has no
 named opposite, not that the edge is one-way to queries: traverse it from
 either end.
 """
-INDEX = "# Knowledge Base Index\n\n## Domains\n\n"
+INDEX = "# Knowledge Base Index\n\n## Pages\n\n"
 LOG = "# Wiki Log\n"
+def overview(domain: str) -> str:
+    return f"# {domain}\n\n> Domain: {domain}\n"
 def write_if_missing(path: Path, content: str) -> bool:
     if path.exists():
         return False
@@ -82,7 +85,8 @@ def main(argv: list[str]) -> int:
     created = []
     files = (
         (root / "raw" / ".gitkeep", ""), (wiki / "schema.md", SCHEMA),
-        (wiki / "index.md", INDEX), (wiki / "log.md", LOG),
+        (wiki / "index.md", INDEX), (wiki / "overview.md", overview(root.name)),
+        (wiki / "log.md", LOG),
     )
     for path, content in files:
         if write_if_missing(path, content):

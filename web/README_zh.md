@@ -95,7 +95,7 @@ Claude 引擎要求 `LLM_API=anthropic-messages`。两个引擎均依赖仓库 `
 
 适配器要求 Codex CLI 支持 `exec --json`、`--ignore-user-config`、`--ignore-rules` 和 `--ephemeral`（可用 `codex exec --help` 检查）。每次启动忽略用户 provider/规则配置并强制 ChatGPT 登录，保留认证目录；不读取用户自定义模型默认值。CLI 缺失、登录失效或版本不支持时任务失败，详情见后端 `ingest_failed` 日志，不自动回退 Claude。
 
-启动检查要求 `wiki/schema.md`、`wiki/index.md`、`wiki/domains/`、`raw/` 和仓库 Skill 可读。应用不会自动读取 mobi 或用户 Pi 设置中的凭证；要复用本地 Pi 配置，请把协议、Base URL、模型和 API key 显式复制到 `.env`。`.env` 已被 Git 忽略。模型目录按 131072 token 上下文上限和 8192 最大输出 token 配置；端点限额更小时可能拒绝请求，此时请新建对话。
+启动检查要求 `wiki/schema.md`、`wiki/index.md`、`wiki/overview.md`、`raw/` 和仓库 Skill 可读。应用不会自动读取 mobi 或用户 Pi 设置中的凭证；要复用本地 Pi 配置，请把协议、Base URL、模型和 API key 显式复制到 `.env`。`.env` 已被 Git 忽略。模型目录按 131072 token 上下文上限和 8192 最大输出 token 配置；端点限额更小时可能拒绝请求，此时请新建对话。
 
 ## 行为与边界
 
@@ -147,7 +147,7 @@ MIT——见仓库 [LICENSE](../LICENSE)。本 Web 应用是 llm-wiki 仓库的�
 
 ### 按目录切换 Wiki
 
-顶栏点击「切换 Wiki」，浏览子目录、返回上级，或填写绝对路径跳转；可打开「显示隐藏目录」。选择包含 `wiki/schema.md`、`wiki/index.md`、`wiki/domains/` 和 `raw/` 的项目根目录，再点击「使用此目录」。仅支持已有 Wiki，不会创建目录结构。目录浏览只列出实际子目录，符号链接可通过绝对路径输入访问，选择时规范化为真实路径。
+顶栏点击「切换 Wiki」，浏览子目录、返回上级，或填写绝对路径跳转；可打开「显示隐藏目录」。选择包含 `wiki/schema.md`、`wiki/index.md`、`wiki/overview.md` 和 `raw/` 的项目根目录，再点击「使用此目录」。仅支持已有 Wiki，不会创建目录结构。目录浏览只列出实际子目录，符号链接可通过绝对路径输入访问，选择时规范化为真实路径。
 
 切换立即生效，目录、正文、阅读回退、对话、输入和本次更新标记会清空；新的显示名称取目录名。正在问答、上传解析、摄入、应用变更或存在未确认预览时，先完成或取消任务、应用或丢弃预览，再切换。刷新页面或关闭预览后，重新点击「添加资料」可恢复当前未结束的任务，继续应用或丢弃；取消或丢弃失败会保留任务并显示错误。其他标签页使用旧 Wiki 标识时会提示刷新。
 

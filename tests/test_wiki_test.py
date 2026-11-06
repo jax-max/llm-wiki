@@ -23,10 +23,10 @@ class KnowledgeTestsTest(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        (self.root / "wiki/domains/shop").mkdir(parents=True)
+        (self.root / "wiki/rules").mkdir(parents=True)
         (self.root / "wiki/schema.md").write_text("schema")
         self.rule = {"id": "returns", "critical": True, "facts": {"days": 7, "excluded": ["custom"]}}
-        self.page = self.root / "wiki/domains/shop/returns.md"
+        self.page = self.root / "wiki/rules/returns.md"
         self.save_rule()
         self.case = {"id": "day-five", "status": "approved", "question": "Day five return is allowed.",
                      "expected": True, "targets": ["returns"], "context_rules": [], "inputs": {"days": 5},
@@ -93,7 +93,7 @@ class KnowledgeTestsTest(unittest.TestCase):
     def test_cross_page_context_not_counted_as_target(self):
         other = copy.deepcopy(self.rule)
         other.update(id="account", critical=False, facts={"active": True})
-        (self.root / "wiki/domains/shop/account.md").write_text("```wiki-rule\n" + json.dumps(other) + "\n```\n")
+        (self.root / "wiki/rules/account.md").write_text("```wiki-rule\n" + json.dumps(other) + "\n```\n")
         self.case["context_rules"] = ["account"]
         self.case["assertion"] = {"op": "all", "args": [self.case["assertion"], {"fact": "account.active"}]}
         self.save_suite()
@@ -159,7 +159,7 @@ class KnowledgeTestsTest(unittest.TestCase):
             self.assertNotIn("raw", path.resolve().parts)
             return original_open(path, *args, **kwargs)
         with patch.object(Path, "open", guarded_open):
-            with self.assertRaisesRegex(ValueError, "outside wiki/domains"):
+            with self.assertRaisesRegex(ValueError, "outside wiki"):
                 wt.generate(self.root)
 
     def test_wiki_and_asset_symlinks_cannot_redirect_into_raw(self):
@@ -167,7 +167,7 @@ class KnowledgeTestsTest(unittest.TestCase):
         self.page.unlink()
         self.page.symlink_to(self.root / "raw/policy.md")
         for operation in (wt.generate, wt.load_rules):
-            with self.assertRaisesRegex(ValueError, "outside wiki/domains"):
+            with self.assertRaisesRegex(ValueError, "outside wiki"):
                 operation(self.root)
         self.page.unlink()
         self.page.write_text("# Returns\n\nReturns allowed within seven days.\n")
@@ -187,24 +187,28 @@ class KnowledgeTestsTest(unittest.TestCase):
         wt.generate(self.root)
         self.assertEqual(wt.run_suite(self.root), 1)
         result = self.report()["cases"][0]
-        self.assertEqual(result["locations"], [{"id": "returns", "page": "wiki/domains/shop/returns.md", "lines": [3, 3]}])
+        self.assertEqual(result["locations"], [{"id": "returns", "page": "wiki/rules/returns.md", "lines": [3, 3]}])
         report = (self.root / "wiki-tests/reports/latest.md").read_text()
         self.assertIn(self.case["question"], report)
         self.assertIn("Expected: True. Actual: False.", report)
-        self.assertIn("wiki/domains/shop/returns.md:3-3", report)
+        self.assertIn("wiki/rules/returns.md:3-3", report)
         self.assertLess(report.index("## Failed scenarios"), report.index("## Inventory statistics"))
         self.assertIn("conflicting Wiki rules", quality.read_text())
 
     def test_path_escape_and_duplicate_rule_rejected(self):
         with self.assertRaisesRegex(ValueError, "outside"):
-            wt.local_path(self.root, "../secret", "wiki/domains")
+            wt.local_path(self.root, "../secret", "wiki")
         self.suite["knowledge"] = [{"id": "escape", "page": "schema.md"}]
         self.save_suite()
-        with self.assertRaisesRegex(ValueError, "outside wiki/domains"):
+        with self.assertRaisesRegex(ValueError, "outside wiki"):
+            wt.load_suite(self.root, wt.load_rules(self.root)[0])
+        self.suite["knowledge"] = [{"id": "structural", "page": "wiki/index.md"}]
+        self.save_suite()
+        with self.assertRaisesRegex(ValueError, "content page"):
             wt.load_suite(self.root, wt.load_rules(self.root)[0])
         self.suite.pop("knowledge")
         self.save_suite()
-        (self.root / "wiki/domains/shop/copy.md").write_bytes(self.page.read_bytes())
+        (self.root / "wiki/rules/copy.md").write_bytes(self.page.read_bytes())
         with self.assertRaisesRegex(ValueError, "duplicate rule"):
             wt.load_rules(self.root)
 
@@ -244,7 +248,7 @@ class KnowledgeTestsTest(unittest.TestCase):
     def test_drafts_do_not_inflate_coverage(self):
         other = copy.deepcopy(self.rule)
         other.update(id="uncovered", critical=False)
-        (self.root / "wiki/domains/shop/other.md").write_text("```wiki-rule\n" + json.dumps(other) + "\n```\n")
+        (self.root / "wiki/rules/other.md").write_text("```wiki-rule\n" + json.dumps(other) + "\n```\n")
         draft = copy.deepcopy(self.case)
         draft.update(id="draft", status="draft", targets=["uncovered"])
         draft["assertion"]["args"][1]["fact"] = "uncovered.days"
@@ -426,7 +430,7 @@ class KnowledgeTestsTest(unittest.TestCase):
     def test_generate_lists_affected_cases_cores_and_context_dependencies(self):
         other = copy.deepcopy(self.rule)
         other.update(id="account", critical=False, facts={"active": True})
-        (self.root / "wiki/domains/shop/account.md").write_text("```wiki-rule\n" + json.dumps(other) + "\n```\n")
+        (self.root / "wiki/rules/account.md").write_text("```wiki-rule\n" + json.dumps(other) + "\n```\n")
         self.case["context_rules"] = ["account"]
         self.case["assertion"] = {"op": "all", "args": [self.case["assertion"], {"fact": "account.active"}]}
         wt.write_json(self.root / "wiki-tests/cores.json",
@@ -434,7 +438,7 @@ class KnowledgeTestsTest(unittest.TestCase):
                                   "cases": ["day-five"]}]})
         self.save_suite()
         wt.generate(self.root)
-        (self.root / "wiki/domains/shop/account.md").write_text("```wiki-rule\n" + json.dumps(other) + "\n```\nUpdated.\n")
+        (self.root / "wiki/rules/account.md").write_text("```wiki-rule\n" + json.dumps(other) + "\n```\nUpdated.\n")
         wt.generate(self.root)
         generation = wt.read_json(self.root / "wiki-tests/reports/generation.json")
         self.assertEqual(generation["changed"], ["account"])
@@ -513,13 +517,13 @@ class KnowledgeTestsTest(unittest.TestCase):
     def test_new_prose_page_queues_review_without_new_cases(self):
         wt.generate(self.root)
         cases = len(wt.read_json(self.root / "wiki-tests/suite.json")["cases"])
-        (self.root / "wiki/domains/shop/handling.md").write_text("纯散文页面，无规则块。\n")
+        (self.root / "wiki/rules/handling.md").write_text("纯散文页面，无规则块。\n")
         wt.generate(self.root)
         suite = wt.read_json(self.root / "wiki-tests/suite.json")
         self.assertEqual(len(suite["cases"]), cases)
         authoring = wt.read_json(self.root / "wiki-tests/reports/authoring.json")
-        self.assertIn("wiki/domains/shop/handling.md", authoring["pages_to_review"])
-        self.assertIn("page:wiki/domains/shop/handling.md",
+        self.assertIn("wiki/rules/handling.md", authoring["pages_to_review"])
+        self.assertIn("page:wiki/rules/handling.md",
                       [item["id"] for item in authoring["review_queue"]["pending"]])
 
     def test_shortened_page_and_ambiguous_anchor_reported_safely(self):
@@ -532,7 +536,7 @@ class KnowledgeTestsTest(unittest.TestCase):
         authoring = wt.read_json(self.root / "wiki-tests/reports/authoring.json")
         self.assertEqual(authoring["missing_bindings"],
                          [{"id": "returns", "reason": "line binding beyond page end",
-                           "page": "wiki/domains/shop/returns.md"}])
+                           "page": "wiki/rules/returns.md"}])
         self.assertEqual(wt.read_json(suite_path)["knowledge"][0]["lines"], [3, 3])
         # Ambiguous anchors: the bound line drifted and the anchor text occurs twice.
         self.page.write_text("# Returns\n\nNote.\n\nReturns allowed within seven days.\n\nReturns allowed within seven days.\n")
@@ -540,7 +544,7 @@ class KnowledgeTestsTest(unittest.TestCase):
         authoring = wt.read_json(self.root / "wiki-tests/reports/authoring.json")
         self.assertEqual(authoring["missing_bindings"],
                          [{"id": "returns", "reason": "ambiguous anchor",
-                           "page": "wiki/domains/shop/returns.md"}])
+                           "page": "wiki/rules/returns.md"}])
         self.assertEqual(wt.read_json(suite_path)["knowledge"][0]["lines"], [3, 3])
 
     def test_generate_reports_deleted_semantic_page_without_dropping_cases(self):

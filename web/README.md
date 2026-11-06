@@ -100,7 +100,7 @@ For temporary file ingest using ChatGPT login, install Codex CLI, run `codex log
 
 Codex CLI must support `exec --json`, `--ignore-user-config`, `--ignore-rules` and `--ephemeral` (check `codex exec --help`). Each run ignores user provider/rule configuration and requires ChatGPT login while retaining the auth directory; custom user model defaults are not loaded. Missing CLI, expired login or unsupported flags fail the job with details in backend `ingest_failed` logs, without fallback to Claude.
 
-The startup check requires readable `wiki/schema.md`, `wiki/index.md`, `wiki/domains/`, `raw/`, and the repository Skill. The app does not automatically read credentials from mobi or the user's Pi settings; to reuse a local Pi setup, explicitly copy its protocol, base URL, model and API key into `.env`. `.env` is ignored by Git. The model catalog uses a 131072-token context ceiling and 8192 maximum output tokens; an endpoint with a smaller limit can reject the request, in which case start a new conversation.
+The startup check requires readable `wiki/schema.md`, `wiki/index.md`, `wiki/overview.md`, `raw/`, and the repository Skill. The app does not automatically read credentials from mobi or the user's Pi settings; to reuse a local Pi setup, explicitly copy its protocol, base URL, model and API key into `.env`. `.env` is ignored by Git. The model catalog uses a 131072-token context ceiling and 8192 maximum output tokens; an endpoint with a smaller limit can reject the request, in which case start a new conversation.
 
 ## Behavior and boundaries
 
@@ -152,7 +152,7 @@ MIT — see the repository [LICENSE](../LICENSE). The web app is part of the llm
 
 ### Choose a Wiki directory
 
-Click **Switch Wiki** in the header to browse folders, move up, enter an absolute path, or show hidden directories. Select an existing project root containing `wiki/schema.md`, `wiki/index.md`, `wiki/domains/`, and `raw/`, then choose **Use this directory**. This does not initialize new Wikis. The list contains actual subdirectories; a symlink can be entered by absolute path and is resolved to its real path.
+Click **Switch Wiki** in the header to browse folders, move up, enter an absolute path, or show hidden directories. Select an existing project root containing `wiki/schema.md`, `wiki/index.md`, `wiki/overview.md`, and `raw/`, then choose **Use this directory**. This does not initialize new Wikis. The list contains actual subdirectories; a symlink can be entered by absolute path and is resolved to its real path.
 
 Switching takes effect immediately and clears the reader, navigation history, catalog filter, conversation, input, and recent update markers. The directory name becomes the Wiki name. Finish or cancel queries, uploads, parsing, ingestion, and pending previews first; apply or discard pending previews before switching. Reopening **Add source** restores unfinished tasks, including after a page refresh. Failed cancellation or discard keeps the task visible and reports an error. Old tabs receive a refresh instruction when their Wiki identifier becomes stale. All tabs share one active Wiki, and directories belong to the server's computer.
 

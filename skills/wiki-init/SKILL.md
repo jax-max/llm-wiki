@@ -1,6 +1,6 @@
 ---
 name: wiki-init
-description: Initialize a new workflow-oriented research wiki with domains, typed pages, immutable raw evidence, and schema rules. Use when creating an LLM wiki. Chinese triggers: 新建 wiki, 初始化知识库, 建一个知识库.
+description: Initialize a new workflow-oriented research wiki with typed pages, immutable raw evidence, and schema rules; one project directory is one domain. Use when creating an LLM wiki. Chinese triggers: 新建 wiki, 初始化知识库, 建一个知识库.
 ---
 
 # Initialize a Workflow-Oriented Wiki
@@ -21,13 +21,14 @@ It creates, without overwriting existing files:
 raw/
 wiki/schema.md
 wiki/index.md
+wiki/overview.md
 wiki/log.md
 ```
 
-`domains/` is the namespace for domains; the initializer creates none. A
-concrete domain is a child such as `domains/machine-learning/`; create its
-`overview.md`, `entities/`, `workflows/`, `rules/`, `state-machines/`, and
-`events/` when it first receives knowledge.
+The project directory is the domain; name it after the bounded knowledge area
+such as `machine-learning/` and the initializer titles `wiki/overview.md` from
+it. Create `entities/`, `workflows/`, `rules/`, `state-machines/`, and
+`events/` under `wiki/` when the domain first receives knowledge.
 
 If `wiki/` exists without `schema.md`, stop: this skill supports only a wiki
 created by `wiki-init`.

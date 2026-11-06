@@ -1,6 +1,6 @@
 # Wiki 核心逻辑质量审查
 
-仅依据 `wiki/domains/lottery-platform/` 的 Wiki 页面审查；未指定应用任务，按 QA 模式从主题主要问题提取结论。
+仅依据 `wiki/` 的 Wiki 页面审查；未指定应用任务，按 QA 模式从主题主要问题提取结论。
 批准表示当前 Wiki 能支持预期答案，不表示已通过真实模型执行。审查范围与扫描版本记录在 `reports/authoring.json`；
 未列出的核心场景未发现问题。测试执行通过不自动关闭以下发现。
 
@@ -9,7 +9,7 @@
 - 模式与分类：`qa`，回答边界。
 
 - 场景：用户有城市和得分，但没有支持该城市的奖池。
-- 位置：`wiki/domains/lottery-platform/rules/award-selection.md:11-15`；`wiki/domains/lottery-platform/entities/lottery-activity.md:13`。
+- 位置：`wiki/rules/award-selection.md:12-16`；`wiki/entities/lottery-activity.md:14`。
 - 已知：城市存在按城市匹配，否则按得分匹配。
 - 缺口：没有说明城市分支匹配失败后应报错、返回空还是采用其他处理。“否则按得分”限定的是缺少城市，不足以推出匹配失败后的策略。
 - 影响：QA 可能无依据地回答为得分回退或默认奖池。
@@ -20,7 +20,7 @@
 - 模式与分类：`qa`，明确声明的回答边界。
 
 - 场景：用户通过登录校验，但风险校验失败，需要向调用方返回结果。
-- 位置：`wiki/domains/lottery-platform/rules/participation-risk-control.md:15`；`wiki/domains/lottery-platform/workflows/user-participation.md:18`。
+- 位置：`wiki/rules/participation-risk-control.md:16`；`wiki/workflows/user-participation.md:19`。
 - 已知：两页明确说明未展示风险校验失败的具体处理。
 - 类型：已声明的知识边界，不是跨页矛盾。
 - 影响：无法从 Wiki 确定错误响应内容、错误码或异常约定。
@@ -31,7 +31,7 @@
 - 模式与分类：`qa`，跨页衔接处的回答边界。
 
 - 场景：概率选奖没有命中任何奖品，返回空结果。
-- 位置：`wiki/domains/lottery-platform/rules/award-selection.md:15`；`wiki/domains/lottery-platform/workflows/user-participation.md:21-22`。
+- 位置：`wiki/rules/award-selection.md:16`；`wiki/workflows/user-participation.md:22-23`。
 - 已知：选奖规则允许空结果；工作流接着描述选择奖品、调用 sendAward、转换响应。
 - 缺口：没有说明空结果是否跳过发奖、是否作为失败响应，或由哪个步骤处理。
 - 影响：QA 可能把未说明的路径回答成“继续发奖”或“必然成功”。

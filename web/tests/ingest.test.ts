@@ -86,12 +86,12 @@ test("ingest failures log job context and SDK stderr before generic SSE error", 
 });
 async function makeWiki() {
   const root = await mkdtemp(path.join(os.tmpdir(), "wiki-ingest-test-"));
-  await mkdir(path.join(root, "wiki/domains/d"), { recursive: true });
+  await mkdir(path.join(root, "wiki/rules"), { recursive: true });
   await mkdir(path.join(root, "raw/src"), { recursive: true });
   await writeFile(path.join(root, "wiki/schema.md"), "# Schema");
   await writeFile(path.join(root, "wiki/index.md"), "# Index");
   await writeFile(path.join(root, "wiki/log.md"), "# Ingest Log\n");
-  await writeFile(path.join(root, "wiki/domains/d/page.md"), "# Page\nold");
+  await writeFile(path.join(root, "wiki/rules/page.md"), "# Page\nold");
   await writeFile(
     path.join(root, "raw/src/a.md"),
     "# A\n\n> Source: https://example.com/post\n> Collected: 2026-10-01\n\nbody\n",
@@ -287,13 +287,13 @@ test("collectChanges classifies added, modified, deleted and outside files", asy
   try {
     const staging = await createStaging(root);
     await writeFile(
-      path.join(staging, "wiki/domains/d/page.md"),
+      path.join(staging, "wiki/rules/page.md"),
       "# Page\nnew body",
     );
-    await mkdir(path.join(staging, "wiki/domains/d/entities"), {
+    await mkdir(path.join(staging, "wiki/rules/entities"), {
       recursive: true,
     });
-    await writeFile(path.join(staging, "wiki/domains/d/entities/e.md"), "# E");
+    await writeFile(path.join(staging, "wiki/rules/entities/e.md"), "# E");
     await writeFile(
       path.join(staging, "raw/src/b.md"),
       "# B\n\n> Source: https://example.com/b\n> Collected: 2026-10-02\n\nb\n",
@@ -305,11 +305,11 @@ test("collectChanges classifies added, modified, deleted and outside files", asy
       changes.map((c) => [c.path, c.change]),
       [
         ["raw/src/b.md", "added"],
-        ["wiki/domains/d/entities/e.md", "added"],
-        ["wiki/domains/d/page.md", "modified"],
+        ["wiki/rules/entities/e.md", "added"],
+        ["wiki/rules/page.md", "modified"],
       ],
     );
-    const page = changes.find((c) => c.path === "wiki/domains/d/page.md")!;
+    const page = changes.find((c) => c.path === "wiki/rules/page.md")!;
     assert.equal(page.additions, 1);
     assert.equal(page.deletions, 1);
     assert.match(page.diff, /^-old$/m);
@@ -384,35 +384,35 @@ test("applyChanges copies additions and edits, refuses conflicts, never deletes"
     const staging = await createStaging(root);
     const baseline = await digestTree(root);
     await writeFile(
-      path.join(staging, "wiki/domains/d/page.md"),
+      path.join(staging, "wiki/rules/page.md"),
       "# Page\nnew body",
     );
-    await mkdir(path.join(staging, "wiki/domains/d/entities"), {
+    await mkdir(path.join(staging, "wiki/rules/entities"), {
       recursive: true,
     });
-    await writeFile(path.join(staging, "wiki/domains/d/entities/e.md"), "# E");
+    await writeFile(path.join(staging, "wiki/rules/entities/e.md"), "# E");
     const { changes } = await collectChanges(root, staging);
     const applied = await applyChanges(root, staging, changes, baseline);
     assert.deepEqual(applied.sort(), [
-      "wiki/domains/d/entities/e.md",
-      "wiki/domains/d/page.md",
+      "wiki/rules/entities/e.md",
+      "wiki/rules/page.md",
     ]);
     assert.match(
       await (
         await import("node:fs/promises")
-      ).readFile(path.join(root, "wiki/domains/d/page.md"), "utf8"),
+      ).readFile(path.join(root, "wiki/rules/page.md"), "utf8"),
       /new body/,
     );
     // Stale baseline: an external edit between preview and apply must 409.
     const staging2 = await createStaging(root);
     const baseline2 = await digestTree(root);
     await writeFile(
-      path.join(staging2, "wiki/domains/d/page.md"),
+      path.join(staging2, "wiki/rules/page.md"),
       "# Page\nconflicting",
     );
     const { changes: changes2 } = await collectChanges(root, staging2);
     await writeFile(
-      path.join(root, "wiki/domains/d/page.md"),
+      path.join(root, "wiki/rules/page.md"),
       "# Page\nmoved on",
     );
     await assert.rejects(
@@ -979,7 +979,7 @@ test("applyChanges validates the whole batch before writing anything", async () 
     const staging = await createStaging(root);
     const baseline = await digestTree(root);
     await writeFile(
-      path.join(staging, "wiki/domains/d/page.md"),
+      path.join(staging, "wiki/rules/page.md"),
       "# Page\nnew",
     );
     await writeFile(path.join(staging, "wiki/newpage.md"), "# New page");
@@ -996,7 +996,7 @@ test("applyChanges validates the whole batch before writing anything", async () 
     assert.match(
       await (
         await import("node:fs/promises")
-      ).readFile(path.join(root, "wiki/domains/d/page.md"), "utf8"),
+      ).readFile(path.join(root, "wiki/rules/page.md"), "utf8"),
       /old/,
     );
     await cleanupStaging(staging);
@@ -1008,14 +1008,14 @@ test("digestTree ignores non-whitelisted files but flags them as not applied", a
   const root = await makeWiki();
   try {
     const staging = await createStaging(root);
-    await writeFile(path.join(staging, "wiki/domains/d/logo.png"), "binary");
+    await writeFile(path.join(staging, "wiki/rules/logo.png"), "binary");
     await writeFile(path.join(root, "raw/src/keep.png"), "existing asset");
     await writeFile(path.join(staging, "raw/src/keep.png"), "existing asset");
     const { changes, outside } = await collectChanges(root, staging);
     assert.ok(!changes.some((c) => c.path.endsWith(".png")));
     assert.deepEqual(changes, []);
     // New non-whitelisted files are surfaced; pre-existing assets are not.
-    assert.deepEqual(outside, ["wiki/domains/d/logo.png"]);
+    assert.deepEqual(outside, ["wiki/rules/logo.png"]);
     await cleanupStaging(staging);
   } finally {
     await rm(root, { recursive: true, force: true });
@@ -1056,7 +1056,7 @@ test("external edits during the run are excluded from the preview diff", async (
     const baseline = await digestTree(root);
     // The agent edits a page…
     await writeFile(
-      path.join(staging, "wiki/domains/d/page.md"),
+      path.join(staging, "wiki/rules/page.md"),
       "# Page\nagent edit",
     );
     // …while an external editor touches a different file in the real library.
@@ -1065,13 +1065,13 @@ test("external edits during the run are excluded from the preview diff", async (
     assert.deepEqual(drifted, []);
     assert.deepEqual(
       changes.map((c) => c.path),
-      ["wiki/domains/d/page.md"],
+      ["wiki/rules/page.md"],
     );
     // External edit to the very file the agent changed: drifted, not a
     // mixed reversing diff.
-    await writeFile(path.join(root, "wiki/domains/d/page.md"), "# Page\next");
+    await writeFile(path.join(root, "wiki/rules/page.md"), "# Page\next");
     const second = await collectChanges(root, staging, baseline);
-    assert.deepEqual(second.drifted, ["wiki/domains/d/page.md"]);
+    assert.deepEqual(second.drifted, ["wiki/rules/page.md"]);
     assert.deepEqual(second.changes, []);
     // verifyStaging with the same baseline does not flag the immutable-raw
     // rule for externally edited raw files.
@@ -1125,13 +1125,13 @@ test("staging excludes symbolic links and refuses a changed copy baseline", asyn
       path.join(outside, "private.md"),
       "private external evidence",
     );
-    await symlink(outside, path.join(root, "wiki/domains/external"));
+    await symlink(outside, path.join(root, "wiki/external"));
     await symlink(
       path.join(outside, "private.md"),
       path.join(root, "raw/external.md"),
     );
     staging = await createStaging(root);
-    await assert.rejects(stat(path.join(staging, "wiki/domains/external")));
+    await assert.rejects(stat(path.join(staging, "wiki/external")));
     await assert.rejects(stat(path.join(staging, "raw/external.md")));
     assert.deepEqual(await digestTree(staging), await digestTree(root));
     const baseline = await digestTree(root);

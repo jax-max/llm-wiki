@@ -14,7 +14,7 @@ test("Markdown disables raw HTML, unsafe URLs and remote images", () => {
   assert.ok(!/<img|<script|javascript:|onerror=/.test(html));
   assert.match(html, /href="wiki\/index.md"/);
   assert.equal(
-    sourceLink("../../../../raw/a.md", "wiki/domains/x/rules/a.md").path,
+    sourceLink("../../raw/a.md", "wiki/rules/a.md").path,
     "raw/a.md",
   );
   for (const href of [

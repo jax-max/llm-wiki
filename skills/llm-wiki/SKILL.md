@@ -22,8 +22,9 @@ be `python` or `py -3`.
 ## Model
 
 `raw/` is immutable source evidence. `wiki/` is the compiled knowledge layer.
-`wiki/domains/` is the collection of domains; `wiki/domains/<domain>/` is one
-bounded knowledge area. Pages are only `Entity`, `Workflow`, `Rule`,
+Each wiki project is one bounded knowledge domain; the project directory holds
+`raw/` and `wiki/` side by side, and `wiki/overview.md` names the domain.
+Pages are only `Entity`, `Workflow`, `Rule`,
 `StateMachine`, or `Event`. Entity pages own business definitions; workflows,
 rules, state machines, and domain events capture business behavior. Use `wiki/schema.md` as
 the authority for metadata and relation signatures.

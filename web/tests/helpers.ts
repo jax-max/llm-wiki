@@ -57,7 +57,7 @@ export function fakeFactory(
           await invoke(tools, "read_document", { path: "wiki/schema.md" });
           await invoke(tools, "read_document", { path: "wiki/index.md" });
           await invoke(tools, "search_wiki", { query: "活动准入" });
-          const p = "wiki/domains/lottery-platform/rules/activity-admission.md";
+          const p = "wiki/rules/activity-admission.md";
           await invoke(tools, "read_document", { path: p });
           await invoke(tools, "wiki_relations", { path: p });
         }

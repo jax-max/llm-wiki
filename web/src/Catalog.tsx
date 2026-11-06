@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import type { Copy, Locale } from "./i18n/types";
 import {
   knowledgeTypes,
-  pageDomain,
+  isSystemPage,
+  isKnowledgePage,
   pageType,
   type CatalogPage,
   type AppliedChange,
@@ -19,10 +20,12 @@ export default function Catalog({
   onClose,
   t,
   locale,
+  name,
   revealUpdates = 0,
 }: {
   t: Copy;
   locale: Locale;
+  name?: string;
   pages: CatalogPage[];
   updates: AppliedChange[];
   activePath?: string;
@@ -59,16 +62,7 @@ export default function Catalog({
     if (!page || revealedPath.current === activePath) return;
     revealedPath.current = activePath;
     revealRequested.current = true;
-    const domain = pageDomain(page);
-    setExpanded((old) => ({
-      ...old,
-      ...(domain
-        ? {
-            [`domain:${domain}`]: true,
-            [`type:${domain}:${pageType(page)}`]: true,
-          }
-        : { [page.path.startsWith("raw/") ? "raw" : "system"]: true }),
-    }));
+    expandFor(page);
   }, [activePath, pages]);
   useEffect(() => {
     if (revealRequested.current && selected.current) {
@@ -88,9 +82,13 @@ export default function Catalog({
         .includes(filter.trim().toLocaleLowerCase()),
     ),
   );
-  const domains = [
-    ...new Set(visible.map(pageDomain).filter((d): d is string => !!d)),
-  ].sort();
+  const expandFor = (page: CatalogPage) =>
+    setExpanded((old) => ({
+      ...old,
+      ...(isKnowledgePage(page)
+        ? { knowledge: true, [`type:${pageType(page)}`]: true }
+        : { [page.path.startsWith("raw/") ? "raw" : "system"]: true }),
+    }));
   const status = new Map(updates.map((u) => [u.path, u.change]));
   const row = (page: CatalogPage, recent = false) => (
     <li key={page.path}>
@@ -102,16 +100,7 @@ export default function Catalog({
         title={page.path}
         onClick={() => {
           revealRequested.current = true;
-          const domain = pageDomain(page);
-          setExpanded((old) => ({
-            ...old,
-            ...(domain
-              ? {
-                  [`domain:${domain}`]: true,
-                  [`type:${domain}:${pageType(page)}`]: true,
-                }
-              : { [page.path.startsWith("raw/") ? "raw" : "system"]: true }),
-          }));
+          expandFor(page);
           onOpen(page.path);
         }}
       >
@@ -214,30 +203,30 @@ export default function Catalog({
         {!loading && !failed && !visible.length && <p>{labels.empty}</p>}
         <nav aria-label={labels.title}>
           <ul>
-            {domains.map((domain) => {
-              const all = pages.filter((p) => pageDomain(p) === domain);
-              const overview = all.find((p) =>
+            {(() => {
+              const knowledge = visible.filter(isKnowledgePage);
+              if (!knowledge.length) return null;
+              const overview = pages.find((p) =>
                 /\/overview\.(md|txt)$/i.test(p.path),
               );
-              const items = visible.filter((p) => pageDomain(p) === domain);
               return group(
-                `domain:${domain}`,
-                overview?.title || domain,
+                "knowledge",
+                overview?.title || name || "wiki",
                 knowledgeTypes.map((type) => {
-                  const typed = items.filter((p) => pageType(p) === type);
+                  const typed = knowledge.filter((p) => pageType(p) === type);
                   return !typed.length
                     ? null
                     : type === "Overview"
                       ? typed.map((p) => row(p))
                       : group(
-                          `type:${domain}:${type}`,
+                          `type:${type}`,
                           labels.types[type],
                           typed.map((p) => row(p)),
                         );
                 }),
                 true,
               );
-            })}
+            })()}
             {group(
               "raw",
               labels.raw,
@@ -248,9 +237,7 @@ export default function Catalog({
             {group(
               "system",
               labels.system,
-              visible
-                .filter((p) => p.path.startsWith("wiki/") && !pageDomain(p))
-                .map((p) => row(p)),
+              visible.filter((p) => isSystemPage(p.path)).map((p) => row(p)),
             )}
           </ul>
         </nav>

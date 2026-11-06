@@ -140,7 +140,11 @@ export class Wiki {
       })) {
         const p = dir + "/" + entry.name;
         if (entry.isDirectory()) await walk(p);
-        else if (entry.isFile() && /\.md$/i.test(p)) {
+        else if (
+          entry.isFile() &&
+          /\.md$/i.test(p) &&
+          !(dir === "wiki" && ["schema.md", "index.md", "log.md"].includes(entry.name))
+        ) {
           const doc = await this.read(p, 0, 50000);
           doc.text = await readFile((await this.resolve(p)).target, "utf8");
           pages.push({
@@ -152,11 +156,7 @@ export class Wiki {
     };
     // Never recurse through symlink directories; each file is checked again on read.
     await this.resolve("wiki/schema.md");
-    const domain = await realpath(path.join(this.root, "wiki/domains"));
-    const root = await realpath(this.root);
-    if (!domain.startsWith(root + path.sep + "wiki" + path.sep))
-      throw new QueryError("path", "知识页目录越界");
-    await walk("wiki/domains");
+    await walk("wiki");
     const schema = await this.read("wiki/schema.md", 0, 50000);
     const inverses = new Map<string, string | null>();
     for (const line of schema.text.split("\n")) {

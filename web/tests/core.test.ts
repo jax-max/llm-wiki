@@ -33,7 +33,7 @@ test("catalog lists actual readable documents and metadata without exposing cont
   const root = await mkdtemp(path.join(os.tmpdir(), "wiki-catalog-"));
   const outside = await mkdtemp(path.join(os.tmpdir(), "wiki-outside-"));
   try {
-    await mkdir(path.join(root, "wiki/domains/demo/rules"), {
+    await mkdir(path.join(root, "wiki/rules"), {
       recursive: true,
     });
     await mkdir(path.join(root, "raw/source"), { recursive: true });
@@ -42,11 +42,11 @@ test("catalog lists actual readable documents and metadata without exposing cont
       "# Index\nNo registered links",
     );
     await writeFile(
-      path.join(root, "wiki/domains/demo/rules/new.md"),
+      path.join(root, "wiki/rules/new.md"),
       "# 新规则\n> Type: Rule\n\nprivate-body",
     );
     await writeFile(
-      path.join(root, "wiki/domains/demo/rules/unknown.md"),
+      path.join(root, "wiki/rules/unknown.md"),
       "# 未知类型\n> Type: FutureType",
     );
     await writeFile(path.join(root, "raw/source/plain.txt"), "plain content");
@@ -54,7 +54,7 @@ test("catalog lists actual readable documents and metadata without exposing cont
     await writeFile(path.join(root, "raw/source/image.png"), "not a document");
     await writeFile(path.join(root, ".env"), "secret");
     await writeFile(path.join(outside, "outside.md"), "# 外部资料");
-    await symlink(outside, path.join(root, "wiki/domains/escape"));
+    await symlink(outside, path.join(root, "wiki/escape"));
     await symlink(
       path.join(outside, "outside.md"),
       path.join(root, "raw/source/link.md"),
@@ -64,7 +64,7 @@ test("catalog lists actual readable documents and metadata without exposing cont
     assert.equal(pages.length, 5);
     assert.deepEqual(
       pages.find((p) => p.title === "新规则"),
-      { path: "wiki/domains/demo/rules/new.md", title: "新规则", type: "Rule" },
+      { path: "wiki/rules/new.md", title: "新规则", type: "Rule" },
     );
     assert.equal(pages.find((p) => p.title === "未知类型")?.type, "FutureType");
     assert.ok(pages.some((p) => p.title === "plain.txt"));
@@ -73,7 +73,7 @@ test("catalog lists actual readable documents and metadata without exposing cont
     assert.ok(!JSON.stringify(pages).includes(root));
     assert.ok(!JSON.stringify(pages).includes("outside"));
     await writeFile(
-      path.join(root, "wiki/domains/demo/rules/new.md"),
+      path.join(root, "wiki/rules/new.md"),
       "# 更新规则\n> Type: Rule",
     );
     assert.ok((await wiki.catalog()).pages.some((p) => p.title === "更新规则"));
@@ -138,8 +138,8 @@ test("Chinese and alias search, prose pagination, real inbound/outbound edges an
   assert.ok(view.search("checkLotteryCondition").length);
   assert.ok(view.search("用户 抽奖").length);
   assert.equal(view.search("not-in-wiki").length, 0);
-  const rule = "wiki/domains/lottery-platform/rules/activity-admission.md";
-  const flow = "wiki/domains/lottery-platform/workflows/user-participation.md";
+  const rule = "wiki/rules/activity-admission.md";
+  const flow = "wiki/workflows/user-participation.md";
   assert.ok(
     view
       .relations(rule)
@@ -168,7 +168,7 @@ test("Chinese and alias search, prose pagination, real inbound/outbound edges an
   );
   assert.equal(
     documentPath(
-      "../../../../raw/meituan-tech/2026-09-18-ddd-in-practice.md",
+      "../../raw/meituan-tech/2026-09-18-ddd-in-practice.md",
       rule,
     ),
     "raw/meituan-tech/2026-09-18-ddd-in-practice.md",
@@ -177,12 +177,14 @@ test("Chinese and alias search, prose pagination, real inbound/outbound edges an
 test("path traversal, encoded attacks, symlink escapes, empty wiki and broken relations", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "wiki-test-"));
   try {
-    await mkdir(path.join(root, "wiki/domains"), { recursive: true });
+    await mkdir(path.join(root, "wiki"), { recursive: true });
     await mkdir(path.join(root, "raw"));
+    await writeFile(path.join(root, "wiki/overview.md"), "# Overview");
     await writeFile(path.join(root, "wiki/schema.md"), "# Schema");
     await writeFile(path.join(root, "wiki/index.md"), "# Index");
     const wiki = new Wiki(root);
-    assert.equal((await wiki.snapshot()).pages.length, 0);
+    // wiki/overview.md is the only structural-but-indexed page.
+    assert.equal((await wiki.snapshot()).pages.length, 1);
     for (const p of [
       "../private.md",
       "wiki/../../private.md",
@@ -196,12 +198,12 @@ test("path traversal, encoded attacks, symlink escapes, empty wiki and broken re
     await symlink("/etc/passwd", path.join(root, "wiki/escape.md"));
     await assert.rejects(wiki.read("wiki/escape.md"));
     await writeFile(
-      path.join(root, "wiki/domains/中文.md"),
+      path.join(root, "wiki/中文.md"),
       "# 中文\n\n## Relations\n\n- governs: [Missing](missing.md)\n",
     );
     const view = await wiki.snapshot();
-    assert.equal(view.relations("wiki/domains/中文.md")[0].broken, true);
-    assert.equal((await wiki.read("wiki/domains/中文.md")).title, "中文");
+    assert.equal(view.relations("wiki/中文.md")[0].broken, true);
+    assert.equal((await wiki.read("wiki/中文.md")).title, "中文");
   } finally {
     await rm(root, { recursive: true, force: true });
   }
@@ -399,10 +401,11 @@ test("directory selection validates roots, canonicalizes paths and lists only di
   );
   try {
     const root = path.join(base, "中文 Wiki");
-    await mkdir(path.join(root, "wiki/domains"), { recursive: true });
+    await mkdir(path.join(root, "wiki"), { recursive: true });
     await mkdir(path.join(root, "raw"));
     await writeFile(path.join(root, "wiki/schema.md"), "# Schema");
     await writeFile(path.join(root, "wiki/index.md"), "# Index");
+    await writeFile(path.join(root, "wiki/overview.md"), "# Overview");
     await mkdir(path.join(base, ".hidden"));
     await writeFile(path.join(base, "secret.txt"), "must not be listed");
     await symlink(root, path.join(base, "alias"));
@@ -448,10 +451,11 @@ test("switching persists only valid roots, blocks concurrent work and preserves 
   );
   try {
     const root = path.join(base, "Selected Wiki");
-    await mkdir(path.join(root, "wiki/domains"), { recursive: true });
+    await mkdir(path.join(root, "wiki"), { recursive: true });
     await mkdir(path.join(root, "raw"));
     await writeFile(path.join(root, "wiki/schema.md"), "# Schema");
     await writeFile(path.join(root, "wiki/index.md"), "# Index");
+    await writeFile(path.join(root, "wiki/overview.md"), "# Overview");
     const file = path.join(base, "state/selection.json");
     assert.equal(await restoreWikiRoot(file), undefined);
     const c = { ...config };

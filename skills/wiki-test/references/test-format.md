@@ -7,7 +7,7 @@ cases call Jev through the separate runtime adapter.
 
 ## Structured facts (optional local checks)
 
-Place a fenced block beside the rule's prose, in a page under `wiki/domains/`:
+Place a fenced block beside the rule's prose, in a page under `wiki/`:
 
 ````markdown
 ```wiki-rule
@@ -140,7 +140,7 @@ knowledge item in `suite.json.knowledge`, binding a line range of the page — t
 Wiki page itself stays markup-free:
 
 ```json
-{"id":"return-policy","page":"wiki/domains/shop/rules/returns.md","lines":[9,9],"anchors":["普通用户签收七日内可申请退货，定制商品除外。","普通用户签收七日内可申请退货，定制商品除外。"],"critical":true}
+{"id":"return-policy","page":"wiki/rules/returns.md","lines":[9,9],"anchors":["普通用户签收七日内可申请退货，定制商品除外。","普通用户签收七日内可申请退货，定制商品除外。"],"critical":true}
 ```
 
 `lines` is the 1-based inclusive `[first, last]` row range of the bound prose.

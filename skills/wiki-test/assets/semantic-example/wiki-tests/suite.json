@@ -4,7 +4,7 @@
   "knowledge": [
     {
       "id": "window",
-      "page": "wiki/domains/shop/rules/window.md",
+      "page": "wiki/rules/window.md",
       "lines": [
         8,
         8
@@ -17,7 +17,7 @@
     },
     {
       "id": "exclusion",
-      "page": "wiki/domains/shop/rules/exclusion.md",
+      "page": "wiki/rules/exclusion.md",
       "lines": [
         8,
         8

@@ -14,7 +14,7 @@ import path from "node:path";
 import { createApp } from "../server/app.js";
 import { config, fakeFactory } from "./helpers.js";
 const answer =
-  "用户参与抽奖需要通过活动准入检查，包括活动时间、用户参与次数等条件。随后还需通过参与频率风控。\n\n- [活动准入](wiki/domains/lottery-platform/rules/activity-admission.md)\n- [用户参与抽奖流程](wiki/domains/lottery-platform/workflows/user-participation.md)\n\n**证据缺口：**知识库没有给出所有活动统一适用的次数上限，应核对具体活动配置。";
+  "用户参与抽奖需要通过活动准入检查，包括活动时间、用户参与次数等条件。随后还需通过参与频率风控。\n\n- [活动准入](wiki/rules/activity-admission.md)\n- [用户参与抽奖流程](wiki/workflows/user-participation.md)\n\n**证据缺口：**知识库没有给出所有活动统一适用的次数上限，应核对具体活动配置。";
 // Ingest runs against a throwaway copy of demo-wiki so the fixture never
 // touches the real example tree.
 const fixtureRoot = await mkdtemp(path.join(tmpdir(), "wiki-preview-"));
@@ -35,10 +35,10 @@ const ingestAgent = async function* (input: { cwd: string }) {
     "# Demo Spec\n\n> Source: https://example.com/spec\n> Collected: 2026-10-15\n\n演示摄入来源：虚拟抽奖活动需在活动时间内参与，且通过风控检查。\n";
   await mkdir(path.dirname(path.join(input.cwd, rawRel)), { recursive: true });
   await writeFile(path.join(input.cwd, rawRel), rawBody);
-  const pageRel = "wiki/domains/lottery-platform/rules/fixture-rule.md";
+  const pageRel = "wiki/rules/fixture-rule.md";
   await writeFile(
     path.join(input.cwd, pageRel),
-    "# Fixture 规则\n\n> Type: Rule\n> Raw: [demo spec](../../../../raw/example-com/2026-10-15-demo-spec.md)\n> Updated: 2026-10-15\n\n## Rule\n\n演示规则。\n\n## Relations\n\n- governs: [用户参与抽奖流程](../workflows/user-participation.md)\n",
+    "# Fixture 规则\n\n> Type: Rule\n> Domain: lottery-platform\n> Raw: [demo spec](../../raw/example-com/2026-10-15-demo-spec.md)\n> Updated: 2026-10-15\n\n## Rule\n\n演示规则。\n\n## Relations\n\n- governs: [用户参与抽奖流程](../workflows/user-participation.md)\n",
   );
   // Upload jobs land in raw/uploads (written by the server); log them too.
   const entries: string[] = [];

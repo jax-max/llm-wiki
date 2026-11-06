@@ -162,21 +162,15 @@ def page_structure_errors(page_type: str | None, text: str) -> list[str]:
 
 def check_page(page: Path, root: Path, schema: Schema) -> list[str]:
     wiki, relative, text = root / "wiki", page.relative_to(root / "wiki"), page.read_text(encoding="utf-8")
-    if page.name == "overview.md":
-        expected = relative.parts[1] if len(relative.parts) >= 2 and relative.parts[0] == "domains" else None
-        domain = metadata(text).get("Domain")
-        return [] if expected is None or not domain or domain == expected else [f"Domain does not match path domain {expected}"]
     errors, fields = [], metadata(text)
-    page_type, domain = fields.get("Type"), fields.get("Domain")
+    page_type = fields.get("Type")
     for field in schema.required_fields:
         if not fields.get(field):
             errors.append(f"missing {field}")
     if page_type not in schema.page_types:
         errors.append(f"invalid Type: {page_type or '(missing)'}")
-    elif len(relative.parts) < 4 or relative.parts[0] != "domains" or relative.parts[2] != schema.page_types[page_type]:
+    elif len(relative.parts) != 2 or relative.parts[0] != schema.page_types[page_type]:
         errors.append(f"Type {page_type} does not match path")
-    if domain and len(relative.parts) >= 2 and relative.parts[0] == "domains" and domain != relative.parts[1]:
-        errors.append(f"Domain {domain} does not match path domain {relative.parts[1]}")
     errors.extend(page_structure_errors(page_type, text))
     errors.extend(content_link_errors(page, text, wiki))
     in_relations = False
@@ -212,8 +206,23 @@ def check_page(page: Path, root: Path, schema: Schema) -> list[str]:
 
 
 def content_pages(wiki: Path) -> list[Path]:
-    domain_root = wiki / "domains"
-    return [p for p in sorted(domain_root.rglob("*.md")) if p.name != "overview.md"] if domain_root.is_dir() else []
+    system = {"schema.md", "index.md", "log.md", "overview.md"}
+    return [p for p in sorted(wiki.rglob("*.md")) if not (p.parent == wiki and p.name in system)]
+
+
+def domain_errors(pages: list[Path], root: Path) -> list[str]:
+    overview = root / "wiki" / "overview.md"
+    if not overview.is_file():
+        return ["missing wiki/overview.md"]
+    domain = metadata(overview.read_text(encoding="utf-8")).get("Domain")
+    if not domain:
+        return ["wiki/overview.md must declare a Domain"]
+    errors = []
+    for page in pages:
+        value = metadata(page.read_text(encoding="utf-8")).get("Domain")
+        if value and value != domain:
+            errors.append(f"Domain {value} does not match overview domain {domain}: {page.relative_to(root)}")
+    return errors
 
 
 def duplicate_entities(pages: list[Path], root: Path) -> list[str]:
@@ -365,12 +374,12 @@ def main(argv: list[str]) -> int:
         return 1
     pages = content_pages(root / "wiki")
     findings: dict[Path | None, list[str]] = {page: check_page(page, root, schema) for page in pages}
-    findings[None] = schema_errors(schema) + duplicate_entities(pages, root) + index_errors(root, pages) + coverage_errors(root, pages, schema)
+    findings[None] = schema_errors(schema) + duplicate_entities(pages, root) + domain_errors(pages, root) + index_errors(root, pages) + coverage_errors(root, pages, schema)
     issues = sum(len(errors) for errors in findings.values())
     print("# Schema check")
     for page, errors in findings.items():
         if errors:
-            print(f"\n{page.relative_to(root) if page else 'wiki/schema.md, wiki/index.md and entity registry'}")
+            print(f"\n{page.relative_to(root) if page else 'wiki/schema.md, wiki/overview.md, wiki/index.md and entity registry'}")
             print("\n".join(f"- {error}" for error in errors))
     if not issues:
         print("\n(none)")

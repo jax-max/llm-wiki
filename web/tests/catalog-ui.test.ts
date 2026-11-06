@@ -50,16 +50,16 @@ const button = (text: string, parent: ParentNode = document) =>
     (e) => e.textContent?.trim() === text,
   );
 const a = {
-  path: "wiki/domains/demo/rules/a.md",
+  path: "wiki/rules/a.md",
   title: "旧规则",
   type: "Rule",
 };
 const b = {
-  path: "wiki/domains/demo/rules/b.md",
+  path: "wiki/rules/b.md",
   title: "新增规则",
   type: "Rule",
 };
-const overview = { path: "wiki/domains/demo/overview.md", title: "演示领域" };
+const overview = { path: "wiki/overview.md", title: "演示领域" };
 const frame = (event: string, data: unknown) =>
   `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 const reader = () => document.querySelector<HTMLElement>(".knowledge-content")!;

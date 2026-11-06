@@ -322,9 +322,9 @@ def check_article(article: Path, root: Path) -> tuple[list[str], list[str]]:
 def iter_articles(wiki_dir: Path):
     for path in sorted(wiki_dir.rglob("*.md")):
         relative = path.relative_to(wiki_dir)
-        # Schema, indexes, logs, and domain overviews are structural pages.
-        # They aggregate links rather than make independently sourced claims.
-        if relative.as_posix() in SKIP_FILES or (relative.parts[:1] == ("domains",) and path.name == "overview.md"):
+        # Schema, the index, the log, and the domain overview are structural
+        # pages. They aggregate links rather than make independently sourced claims.
+        if relative.as_posix() in SKIP_FILES or path.name == "overview.md":
             continue
         yield path
 

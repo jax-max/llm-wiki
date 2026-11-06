@@ -72,6 +72,18 @@ def require(condition, message):
         raise ValueError(message)
 
 
+STRUCTURAL_PAGES = {"wiki/schema.md", "wiki/index.md", "wiki/log.md"}
+
+
+def content_binding(root, relative):
+    """Resolve a test binding, rejecting the structural pages of wiki/."""
+    page = local_path(root, relative, "wiki")
+    resolved_root = Path(root).resolve()
+    require(str(page.relative_to(resolved_root)) not in STRUCTURAL_PAGES,
+            "binding must reference a content page: " + relative)
+    return page
+
+
 def local_path(root, relative, directory):
     require(isinstance(relative, str), "path must be a string")
     path = (root / relative).resolve()
@@ -83,13 +95,20 @@ def local_path(root, relative, directory):
     return path
 
 
+def content_pages(root):
+    """All Wiki pages except the structural ones at the top of wiki/."""
+    system = {"schema.md", "index.md", "log.md", "overview.md"}
+    return sorted(p for p in (root / "wiki").rglob("*.md")
+                  if not (p.parent == root / "wiki" and p.name in system))
+
+
 def load_rules(root, missing=None):
     root = root.resolve()
     require(local_path(root, "wiki/schema.md", "wiki").is_file(), "missing wiki/schema.md")
     rules = {}
     pages = []
-    for page in sorted((root / "wiki/domains").rglob("*.md")):
-        local_path(root, str(page.relative_to(root)), "wiki/domains")
+    for page in content_pages(root):
+        local_path(root, str(page.relative_to(root)), "wiki")
         text = page.read_text(encoding="utf-8")
         matches = list(BLOCK.finditer(text))
         require(len(matches) == len(re.findall(r"^```wiki-rule\b", text, re.M)),
@@ -123,7 +142,7 @@ def load_rules(root, missing=None):
             rid = entry["id"]
             require(isinstance(rid, str) and re.fullmatch(r"[A-Za-z0-9_-]+", rid), "invalid knowledge ID")
             require(rid not in rules, "duplicate rule: " + rid)
-            page = local_path(root, entry["page"], "wiki/domains")
+            page = content_binding(root, entry["page"])
             if missing is not None and not page.is_file():
                 missing.append({"id": rid, "reason": "missing page", "page": entry["page"]})
                 continue
@@ -333,7 +352,7 @@ def scan_version(root):
     root = root.resolve()
     fingerprint = hashlib.sha256()
     for page in sorted([local_path(root, "wiki/schema.md", "wiki")] +
-                       list((root / "wiki/domains").rglob("*.md"))):
+                       content_pages(root)):
         local_path(root, str(page.relative_to(root)), "wiki")
         fingerprint.update(str(page.relative_to(root)).encode("utf-8") + b"\0")
         fingerprint.update(page.read_bytes())
@@ -349,7 +368,7 @@ def generate(root):
             require("sources" not in entry, "sources is not supported; use Wiki bindings")
         relocated = False
         for entry in suite.get("knowledge", []):
-            page = local_path(root, entry["page"], "wiki/domains")
+            page = content_binding(root, entry["page"])
             if page.is_file():
                 relocated = relocate_lines(entry, page.read_text(encoding="utf-8").split("\n")) or relocated
         if relocated:

@@ -7,8 +7,8 @@ import { config, wikiDigest } from "./helpers.js";
 type Step =
   | { name: string; args: Record<string, unknown> }
   | { answer: string };
-const rule = "wiki/domains/lottery-platform/rules/activity-admission.md";
-const flow = "wiki/domains/lottery-platform/workflows/user-participation.md";
+const rule = "wiki/rules/activity-admission.md";
+const flow = "wiki/workflows/user-participation.md";
 const raw = "raw/meituan-tech/2026-09-18-ddd-in-practice.md";
 const read = (path: string): Step => ({
   name: "read_document",

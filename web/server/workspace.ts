@@ -28,7 +28,7 @@ export async function validateWikiRoot(input: string): Promise<string> {
   for (const [relative, directory] of [
     ["wiki/schema.md", false],
     ["wiki/index.md", false],
-    ["wiki/domains", true],
+    ["wiki/overview.md", false],
     ["raw", true],
   ] as const) {
     try {

@@ -6,7 +6,7 @@ description: Ingest a URL, file, or pasted source into a workflow-oriented resea
 # Ingest Research Knowledge
 
 Require `wiki/schema.md`; otherwise direct the user to `wiki-init`. Read the
-schema and relevant domain overview before writing.
+schema and the domain overview (`wiki/overview.md`) before writing.
 
 1. Save source text unchanged in meaning to
    `raw/<source-domain>/YYYY-MM-DD-<slug>.md`, using the raw template. Immediately
@@ -14,7 +14,7 @@ schema and relevant domain overview before writing.
    and Windows git-bash), then `shasum -a 256 <file>` (macOS), then
    `powershell.exe -NoProfile -Command "(Get-FileHash -Algorithm SHA256 <file>).Hash"`
    — and record it as the `- SHA-256:` line of its log entry, right after `- Raw:`.
-2. Search `wiki/domains/` by names, aliases, and related terms.
+2. Search `wiki/` content pages by names, aliases, and related terms.
 3. Read the entire source and create a candidate matrix for every Page Type
    declared in `wiki/schema.md` before writing. For each Type, record exactly
    one disposition: `Added`, `Updated`, `Reused`, or `N/A`. `N/A` needs a
@@ -27,13 +27,11 @@ schema and relevant domain overview before writing.
    - **Event**: a business-significant domain occurrence. Prefer event types
      such as a participation, issuance, or approval; add a concrete instance
      when the source gives its specific time, participants, or context.
-4. Put the page in its one primary domain; create a new domain only when no
-   existing one can own the page, and make it the smallest domain that can.
-   Reuse an existing page when identity
-   matches; do not duplicate a cross-domain entity. Put an entity's definition
+4. This project is one domain: stamp every page `Domain: <domain>` matching
+   `wiki/overview.md`. Reuse an existing page when identity
+   matches; do not duplicate an entity. Put an entity's definition
    and boundary in its `Overview`; do not create pages merely to define a noun.
-   Its path declares the Domain; do not add a required Domain field. Use
-   relations for other domains. Apply the modeling economy criteria below
+   Apply the modeling economy criteria below
    before creating a page.
 5. Create/update the pages the matrix calls for, from the matching page template,
    stamping each page `Updated: {today}` (the freshness check requires it). Every

@@ -78,7 +78,7 @@ sources are distilled once into typed, linked, reviewable pages.
 | Similarity is not correctness — the nearest chunk may be an old version, a draft, or an exception clause. | `raw/` is immutable evidence; the linter verifies that every number, ISO date, and quotation appears verbatim in the cited Raw file. |
 | Chunking severs context — conditions, definitions, tables, and adjacent clauses are split apart, so answers quote out of context. | Knowledge lives in whole typed pages, not fragments; conditions and definitions stay intact. |
 | No model of entities and relations — cross-document, multi-hop questions (e.g. customer → contract → product → policy) are unstable. | Five page types plus schema-signed relations; queries expand along `## Relations` links. |
-| Terminology and homonyms — one word with many meanings, one entity with many names, and recall gets confused. | Each Entity belongs to one primary domain, carries `Aliases`, and is reused by link instead of copied. |
+| Terminology and homonyms — one word with many meanings, one entity with many names, and recall gets confused. | Each Entity has one defining page, carries `Aliases`, and is reused by link instead of copied. |
 | No native handling of time, permissions, versions, or precedence ("the policy currently in effect", "visible to this team only"). | Partial, and honest about it: ISO dates must appear verbatim, Event pages record time-bounded occurrences; temporal validity and access control are out of scope for this MVP. |
 | Hard to explain and govern — a pile of snippets with no provenance and no conflict resolution. | Every load-bearing fact links back to `raw/`; `wiki/log.md` records dispositions and a coverage matrix; lint enforces both. |
 | Maintenance means tuning — chunk size, overlap, embedding, top-k, rerank, endlessly, while business semantics are never captured explicitly. | Business semantics are captured explicitly in reviewable Markdown (schema + pages), not in retriever hyperparameters. |
@@ -89,27 +89,24 @@ query time.
 ## Knowledge model
 
 ```text
-project/
-├── raw/                         # Immutable sources
+project/                       # One bounded knowledge domain
+├── raw/                       # Immutable sources
 └── wiki/
-    ├── schema.md                # Types, metadata, relation verbs
+    ├── schema.md              # Types, metadata, relation verbs
     ├── index.md
+    ├── overview.md            # The domain's own overview
     ├── log.md
-    └── domains/                 # Namespace of domains
-        └── machine-learning/    # One concrete domain
-            ├── overview.md
-            ├── entities/
-            ├── workflows/
-            ├── rules/
-            ├── state-machines/
-            └── events/
+    ├── entities/
+    ├── workflows/
+    ├── rules/
+    ├── state-machines/
+    └── events/
 ```
 
-`domains/` is a collection; `machine-learning/` is a concrete bounded
-knowledge area. An Entity belongs to one primary domain and is linked from
-other domains rather than copied. Create a domain only when no existing one
-can own the knowledge. Its Overview owns the definition and
-boundary of that business object. Workflows describe cross-entity cooperation;
+The project is one bounded knowledge area; name the directory after it (for
+example `machine-learning/`) and let `wiki/overview.md` carry the domain's
+definition and boundary. To cover several domains, create one project per
+domain and link them at the reader level. Workflows describe cross-entity cooperation;
 Rules describe decisions, mechanisms, strategies, and algorithms;
 StateMachines describe entity lifecycles; Events describe business-significant
 domain occurrences (and may be refined into concrete instances when a source
@@ -138,7 +135,7 @@ The lifecycle: `wiki-init` creates the wiki, `wiki-ingest` compiles sources,
 
 - `wiki-init` is idempotent and refuses to overwrite an existing `wiki/` that has no `schema.md`.
 - `wiki-ingest` stores the source verbatim under `raw/`, records the file's SHA-256 in its log entry, plans a candidate matrix (an Added / Updated / Reused / N-A disposition per page type, where every N/A needs a source-grounded reason), then compiles pages in which each exact number, date, and quotation must appear verbatim in the linked Raw file and every created or recompiled page is stamped with the compile-date `Updated`. A source with no new knowledge is kept as Raw with `Disposition: No material`. For a link list or multiple files it runs batch ingest: save every raw first, then compile the sources one at a time — never in parallel.
-- `wiki-query` is read-only: it searches `wiki/domains/`, expands along Relations (inverse verbs are query-time traversal hints, never mirrored edges), and separates grounded facts from synthesis, reporting evidence gaps.
+- `wiki-query` is read-only: it searches `wiki/` content pages, expands along Relations (inverse verbs are query-time traversal hints, never mirrored edges), and separates grounded facts from synthesis, reporting evidence gaps.
 - `wiki-lint` runs the evidence and schema checkers, appends one result to `wiki/log.md`, and exits non-zero under `--strict` so findings fail CI. It also recomputes each raw file's SHA-256 against the digest recorded at ingest, flagging modified evidence, and flags pages whose `Updated` predates the latest digest-anchored ingest of their Raw. Auto-fixing is limited to unambiguous link and index repairs.
 
 `skills/` contains six skills. `skills/llm-wiki/` is a

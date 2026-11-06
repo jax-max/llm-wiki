@@ -75,7 +75,7 @@ npm --prefix web start
 | 只懂"像不像"，不懂"对不对"：语义相近的内容可能是旧版本、草稿或例外规则。 | `raw/` 是不可变证据；linter 校验每个数字、ISO 日期、引文都逐字出现在所链接的 Raw 文件中。 |
 | 切块会切断上下文：条件、定义、表格、前后条款被拆开，答案容易断章取义。 | 知识以完整的类型化页面组织而非切片，条件与定义整页保留。 |
 | 不理解实体和关系：很难稳定回答跨文档、多跳问题，例如"客户—合同—产品—政策"的关联。 | 五种页面类型 + schema 签名的关系；查询沿 `## Relations` 链接扩展。 |
-| 术语与同名问题严重：一个词多义、一个实体多名称时，召回容易混乱。 | 每个 Entity 归属唯一主领域、携带 `Aliases` 别名，以链接复用而非复制。 |
+| 术语与同名问题严重：一个词多义、一个实体多名称时，召回容易混乱。 | 每个 Entity 只有一张定义页、携带 `Aliases` 别名，以链接复用而非复制。 |
 | 无法天然处理时间、权限、版本和优先级：例如"当前有效的制度""仅限本部门可见"。 | 部分支持、如实声明：ISO 日期必须逐字一致，Event 页面记录带时间的业务发生；时间有效性与访问控制超出本 MVP 范围。 |
 | 难解释、难治理：通常只能给出若干文本片段，难明确证明答案依据、数据来源和冲突如何裁决。 | 每个承重事实都链接回 `raw/`；`wiki/log.md` 记录处置与 Coverage 覆盖表；lint 强制执行两者。 |
 | 维护靠调参：chunk 大小、重叠、embedding、top-k、rerank 都要反复试，业务语义却没有被显式沉淀。 | 业务语义显式沉淀为可评审的 Markdown（schema + 页面），而非检索器超参数。 |
@@ -85,26 +85,23 @@ npm --prefix web start
 ## 知识模型
 
 ```text
-project/
-├── raw/                         # 不可变的原始来源
+project/                       # 一个边界知识域
+├── raw/                       # 不可变的原始来源
 └── wiki/
-    ├── schema.md                # 页面类型、元数据、关系动词
+    ├── schema.md              # 页面类型、元数据、关系动词
     ├── index.md
+    ├── overview.md            # 该领域的总览
     ├── log.md
-    └── domains/                 # 领域命名空间
-        └── machine-learning/    # 一个具体领域
-            ├── overview.md
-            ├── entities/
-            ├── workflows/
-            ├── rules/
-            ├── state-machines/
-            └── events/
+    ├── entities/
+    ├── workflows/
+    ├── rules/
+    ├── state-machines/
+    └── events/
 ```
 
-`domains/` 是领域集合；`machine-learning/` 是一个具体的边界知识域。每个
-Entity 归属一个主领域，其他领域通过链接引用而非复制。仅当现有领域无法承载
-该知识时才新建领域。领域的 overview 拥有
-该业务对象的定义与边界。Workflow 描述跨实体协作；Rule 描述决策、机制、
+项目本身即一个边界知识域：按领域命名项目目录（如 `machine-learning/`），由
+`wiki/overview.md` 承载该领域的定义与边界。要覆盖多个领域，就按领域各建一个
+项目，并在阅读层互相引用。Workflow 描述跨实体协作；Rule 描述决策、机制、
 策略与算法；StateMachine 描述实体生命周期；Event 描述有业务意义的领域事件
 （当来源提供时间与上下文时，可细化为具体实例）。StateMachine 与 Workflow
 都在为行为排序：StateMachine 必须锚定到单个实体，由触发条件与守卫条件推进
@@ -129,7 +126,7 @@ Entity 归属一个主领域，其他领域通过链接引用而非复制。仅�
 
 - `wiki-init` 幂等，且拒绝改动没有 `schema.md` 的已有 `wiki/`。
 - `wiki-ingest` 先把原文完整存入 `raw/` 并在其 log 条目记录文件 SHA-256，规划候选矩阵（对每种页面类型给出 Added / Updated / Reused / N-A 处置，每个 N/A 都要有可溯源的理由），再编译页面——页面中每个精确数字、日期、引文都必须逐字出现在所链接的 Raw 文件中，且每次创建或重编译的页面都盖当日的 `Updated` 日期。没有增量知识的来源只保留 Raw 并记录 `Disposition: No material`。面对链接清单或多个文件时走批量摄入：先保存全部 raw，再逐个顺序编译，绝不并行。
-- `wiki-query` 只读：搜索 `wiki/domains/`，沿 Relations 扩展（Inverse 仅作查询时遍历提示，不写镜像边），区分可溯源事实与综合推断，并报告证据缺口。
+- `wiki-query` 只读：搜索 `wiki/` 知识页，沿 Relations 扩展（Inverse 仅作查询时遍历提示，不写镜像边），区分可溯源事实与综合推断，并报告证据缺口。
 - `wiki-lint` 运行证据与 schema 两个检查器，向 `wiki/log.md` 追加一条结果；`--strict` 下发现问题即非零退出，供 CI 使用。它还会重算每个 raw 文件的 SHA-256 并与摄入时记录的摘要比对，标记被改动过的证据；并以摘要锚定的摄入日期校验页面 `Updated`，标记落后于其证据最新摄入的页面。自动修复仅限无歧义的链接与索引修复。
 
 `skills/` 下是六个 skill。其中 `skills/llm-wiki/` 是导航器，负责路由

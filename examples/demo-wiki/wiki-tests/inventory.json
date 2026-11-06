@@ -1,52 +1,63 @@
 {
   "rules": {
     "activity-admission": {
-      "page": "wiki/domains/lottery-platform/rules/activity-admission.md",
-      "hash": "83d76a50cfc273e7de5e718ccea932e07140ac150635263b79e804b8c86dff7f"
+      "page": "wiki/rules/activity-admission.md",
+      "hash": "83d76a50cfc273e7de5e718ccea932e07140ac150635263b79e804b8c86dff7f",
+      "page_hash": "9a9e2119af7369cd7b5a121f55475788f95f025485df6b026bfd9c6c40a85252"
     },
     "risk-control": {
-      "page": "wiki/domains/lottery-platform/rules/participation-risk-control.md",
-      "hash": "c4e33ca9298550d627a995c42a0ab873600b83b35233b4273d03b1da29a3e5f9"
+      "page": "wiki/rules/participation-risk-control.md",
+      "hash": "c4e33ca9298550d627a995c42a0ab873600b83b35233b4273d03b1da29a3e5f9",
+      "page_hash": "22480477e80e16854a471f2ccb68cbdfba7618f29656f7d884e3080e524b1a22"
     },
     "attempt-counting": {
-      "page": "wiki/domains/lottery-platform/rules/lottery-attempt-counting.md",
-      "hash": "9395da8ba57b50234f10e2dac18abe3bd866c3341e5160ce5a17293732e05192"
+      "page": "wiki/rules/lottery-attempt-counting.md",
+      "hash": "9395da8ba57b50234f10e2dac18abe3bd866c3341e5160ce5a17293732e05192",
+      "page_hash": "14dcad86e70b644d568554aba6c7885b4668b034a1e461b22d05b3ac6f1677a0"
     },
     "award-selection": {
-      "page": "wiki/domains/lottery-platform/rules/award-selection.md",
-      "hash": "46cc41076c64623aff55b8827ae7bf0a11541c7a37a3af597dec8784e426c8fa"
+      "page": "wiki/rules/award-selection.md",
+      "hash": "46cc41076c64623aff55b8827ae7bf0a11541c7a37a3af597dec8784e426c8fa",
+      "page_hash": "64f2d52f70962ecc81fc2603102ec1400f214eaff36e7c82e5a767a20cba1230"
     },
     "participation-flow": {
-      "page": "wiki/domains/lottery-platform/workflows/user-participation.md",
-      "hash": "d7f8aa2c383b6451262956d5d608f7e276b32b843589968b655c412388afd7a0"
+      "page": "wiki/workflows/user-participation.md",
+      "hash": "d7f8aa2c383b6451262956d5d608f7e276b32b843589968b655c412388afd7a0",
+      "page_hash": "559d7f4371baa6643de77de55bf401f8ede6be20fe25c0df0a8c9aa5c69a539c"
     },
     "lottery-activity": {
-      "page": "wiki/domains/lottery-platform/entities/lottery-activity.md",
-      "hash": "f8ef4fcaf23d99ebde78d0ff87667b67ca148a431e1cf13816c226d14973144d"
+      "page": "wiki/entities/lottery-activity.md",
+      "hash": "f8ef4fcaf23d99ebde78d0ff87667b67ca148a431e1cf13816c226d14973144d",
+      "page_hash": "0d0eb8faae5a8f47d9668d965b0aed7804714dc2c9020ce947b774a0a19c1dde"
     },
     "award-pool": {
-      "page": "wiki/domains/lottery-platform/entities/award-pool.md",
-      "hash": "9e1eaab484a7bd016e49beb72dcfead37f960a563e9180b6251829eddfc3d26b"
+      "page": "wiki/entities/award-pool.md",
+      "hash": "9e1eaab484a7bd016e49beb72dcfead37f960a563e9180b6251829eddfc3d26b",
+      "page_hash": "21ef1632df980ba8e0fc1023316050773a791e0817694ae2eefeee6e387300dd"
     },
     "stock-independence": {
-      "page": "wiki/domains/lottery-platform/entities/stock.md",
-      "hash": "d9e849c2cdeab88f385706040c784660cf57cca286b1872d2e0746befca8bc6e"
+      "page": "wiki/entities/stock.md",
+      "hash": "d9e849c2cdeab88f385706040c784660cf57cca286b1872d2e0746befca8bc6e",
+      "page_hash": "cc07118cc5f66ac03bd4cac774683b244b3ce5c9833d6f22f624c67cd3bcb07d"
     },
     "user-context": {
-      "page": "wiki/domains/lottery-platform/entities/user.md",
-      "hash": "b771034eaa32009f292cca53e87d56f0d977a134d02750c0431b90865bc66b62"
+      "page": "wiki/entities/user.md",
+      "hash": "b771034eaa32009f292cca53e87d56f0d977a134d02750c0431b90865bc66b62",
+      "page_hash": "545321d7c9dc1759ab10072781d266fde2b7891381881d5e906fee6a2d297196"
     },
     "award-issued-event": {
-      "page": "wiki/domains/lottery-platform/events/award-issued.md",
-      "hash": "524cc6bc3cfb8917590f955a0b805d61f281d29167cb4e65cf5587f0543833af"
+      "page": "wiki/events/award-issued.md",
+      "hash": "524cc6bc3cfb8917590f955a0b805d61f281d29167cb4e65cf5587f0543833af",
+      "page_hash": "cf5b7ed84e25ee9aaf9cccf5725de67677b67d3b5200335fa373e34732a33483"
     },
     "domain-contexts": {
-      "page": "wiki/domains/lottery-platform/overview.md",
-      "hash": "ca01eb50b21a28e9b711f77630e00238ee9af8ce89dffe36821d3a7e8c85cfe1"
+      "page": "wiki/overview.md",
+      "hash": "ca01eb50b21a28e9b711f77630e00238ee9af8ce89dffe36821d3a7e8c85cfe1",
+      "page_hash": "aedafa55d245839fee2e033d2e850840d0f2684c99da420c1ed3271ea4177aa6"
     }
   },
   "pages_without_rules": [
-    "wiki/domains/lottery-platform/entities/award.md",
-    "wiki/domains/lottery-platform/events/lottery-participation.md"
+    "wiki/entities/award.md",
+    "wiki/events/lottery-participation.md"
   ]
 }

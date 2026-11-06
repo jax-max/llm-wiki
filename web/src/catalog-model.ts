@@ -9,8 +9,11 @@ export const knowledgeTypes = [
   "Event",
   "Other",
 ] as const;
-export function pageDomain(page: CatalogPage) {
-  return page.path.match(/^wiki\/domains\/([^/]+)\//)?.[1];
+export function isSystemPage(path: string) {
+  return /^wiki\/(schema|index|log)\.md$/i.test(path);
+}
+export function isKnowledgePage(page: CatalogPage) {
+  return page.path.startsWith("wiki/") && !isSystemPage(page.path);
 }
 export function pageType(page: CatalogPage): (typeof knowledgeTypes)[number] {
   const type =

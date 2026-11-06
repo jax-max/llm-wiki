@@ -30,7 +30,7 @@ test("progress uses source titles and never backend labels or paths", () => {
     "正在查找相关内容…",
   );
   assert.equal(progressMessage({ tool: "unknown" }, "zh"), "正在查找相关内容…");
-  assert.equal(sourceTitle("wiki/domains/rules/a.md"), "");
+  assert.equal(sourceTitle("wiki/rules/a.md"), "");
   assert.equal(sourceTitle("a.md"), "");
   assert.equal(sourceTitle(undefined), "");
 });
@@ -56,7 +56,7 @@ test("progress copy mirrors in English", () => {
 
 test("failures use actionable copy without exposing implementation details", async () => {
   const detail =
-    "wiki/domains/private.md API LLM_API_KEY contextWindow tool budget";
+    "wiki/private.md API LLM_API_KEY contextWindow tool budget";
   for (const locale of ["zh", "en"] as const) {
     for (const code of [
       "budget",

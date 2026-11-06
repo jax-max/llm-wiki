@@ -1,11 +1,11 @@
 {
   "rules": {
     "window": {
-      "page": "wiki/domains/shop/rules/window.md",
+      "page": "wiki/rules/window.md",
       "hash": "ac0ad249a93bb123fac757bb2a627c262c065e465aa08cffec25276e7cd0a871"
     },
     "exclusion": {
-      "page": "wiki/domains/shop/rules/exclusion.md",
+      "page": "wiki/rules/exclusion.md",
       "hash": "a2056329b05d9d100a6c93eebe29f2ddc321661d2f20e2f74c113a68d15925fb"
     }
   },

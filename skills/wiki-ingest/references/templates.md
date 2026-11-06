@@ -18,13 +18,15 @@
 # {Title}
 
 > Type: {Entity | Workflow | Rule | StateMachine | Event}
-> Raw: [{source}](../../../../raw/{source-domain}/{file}.md)
+> Domain: {domain, matching wiki/overview.md}
+> Raw: [{source}](../../raw/{source-domain}/{file}.md)
 > Updated: {YYYY-MM-DD}
 
 ```
 
 Use the metadata block on every typed page. Add one `> Raw:` line per source
-when a page is grounded in multiple files. Domain is inferred from the path.
+when a page is grounded in multiple files. `Domain` must match
+`wiki/overview.md`.
 `Aliases` and `Sources` may be added when useful. `Updated` is required: write
 today's date every time a page is created or recompiled, and it must not
 predate the latest ingest of any linked Raw (the evidence checker verifies
@@ -123,8 +125,8 @@ A date or applicability condition alone does not justify an Event. A rule stays
 in its Rule page; its publication, activation, or revision can be a separate
 Event when the source explicitly describes a meaningful occurrence.
 
-For pages under `domains/<domain>/<type>/`, Raw links ascend from the page to
-the project root as `../../../../raw/...`. Always calculate relative paths from
+For pages under `wiki/<type>/`, Raw links ascend from the page to
+the project root as `../../raw/...`. Always calculate relative paths from
 the actual page rather than copying this example blindly.
 
 ## Log entry
@@ -134,17 +136,17 @@ the actual page rather than copying this example blindly.
 - Disposition: New | Update | Disputed
 - Raw: raw/{source-domain}/{file}.md
 - SHA-256: {hexdigest of the saved raw file, computed at ingest time}
-- Pages: wiki/domains/{domain}/{type}/{page}.md
+- Pages: wiki/{type}/{page}.md
 
 ### Coverage
 
 | Type | Disposition | Pages or rationale |
 |---|---|---|
-| Entity | Added | [{page}](domains/{domain}/entities/{page}.md) |
-| Workflow | Reused | [{page}](domains/{domain}/workflows/{page}.md) |
+| Entity | Added | [{page}](entities/{page}.md) |
+| Workflow | Reused | [{page}](workflows/{page}.md) |
 | Rule | N/A | The source defines no standalone decision mechanism. |
 | StateMachine | N/A | The source describes no lifecycle states or transitions. |
-| Event | Updated | [{page}](domains/{domain}/events/{page}.md) |
+| Event | Updated | [{page}](events/{page}.md) |
 ```
 
 Use every Page Type declared in `wiki/schema.md`, not only the five rows shown

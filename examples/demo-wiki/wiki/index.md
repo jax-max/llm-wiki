@@ -1,18 +1,18 @@
 # Knowledge Base Index
 
-## Domains
+## Pages
 
-- [抽奖平台](domains/lottery-platform/overview.md)
+- [抽奖平台](overview.md)
 
-- [抽奖活动](domains/lottery-platform/entities/lottery-activity.md)
-- [奖池](domains/lottery-platform/entities/award-pool.md)
-- [奖品](domains/lottery-platform/entities/award.md)
-- [用户](domains/lottery-platform/entities/user.md)
-- [库存](domains/lottery-platform/entities/stock.md)
-- [用户参与抽奖](domains/lottery-platform/workflows/user-participation.md)
-- [奖池匹配与概率选奖](domains/lottery-platform/rules/award-selection.md)
-- [活动准入](domains/lottery-platform/rules/activity-admission.md)
-- [参与频率风控](domains/lottery-platform/rules/participation-risk-control.md)
-- [抽奖尝试计数](domains/lottery-platform/rules/lottery-attempt-counting.md)
-- [用户参与抽奖事件](domains/lottery-platform/events/lottery-participation.md)
-- [奖品发放事件](domains/lottery-platform/events/award-issued.md)
+- [抽奖活动](entities/lottery-activity.md)
+- [奖池](entities/award-pool.md)
+- [奖品](entities/award.md)
+- [用户](entities/user.md)
+- [库存](entities/stock.md)
+- [用户参与抽奖](workflows/user-participation.md)
+- [奖池匹配与概率选奖](rules/award-selection.md)
+- [活动准入](rules/activity-admission.md)
+- [参与频率风控](rules/participation-risk-control.md)
+- [抽奖尝试计数](rules/lottery-attempt-counting.md)
+- [用户参与抽奖事件](events/lottery-participation.md)
+- [奖品发放事件](events/award-issued.md)

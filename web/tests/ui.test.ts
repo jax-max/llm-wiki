@@ -52,7 +52,7 @@ test("chat UI streams, stops, retries, follows citations and resets conversation
         title: p?.startsWith("raw") ? "原始依据" : "活动准入",
         text: p?.startsWith("raw")
           ? "# 原始依据\n已验证的原文"
-          : "# 活动准入\n[原始依据](../../../../raw/source.md)\n[断链](missing.md)",
+          : "# 活动准入\n[原始依据](../../raw/source.md)\n[断链](missing.md)",
         nextOffset: null,
         total: 20,
       });
@@ -70,7 +70,7 @@ test("chat UI streams, stops, retries, follows citations and resets conversation
                   frame("session", { sessionId: "s1" }) +
                     frame("progress", {
                       tool: "read_document",
-                      path: "wiki/domains/x/rules/a.md",
+                      path: "wiki/rules/a.md",
                       label: "technical label",
                       documentTitle: "活动准入",
                     }),
@@ -86,7 +86,7 @@ test("chat UI streams, stops, retries, follows citations and resets conversation
       return new Response(
         frame("session", { sessionId: "s1" }) +
           frame("delta", {
-            text: "有依据的回答：[活动准入](wiki/domains/x/rules/a.md)",
+            text: "有依据的回答：[活动准入](wiki/rules/a.md)",
           }) +
           frame("done", {}),
       );
@@ -121,7 +121,7 @@ test("chat UI streams, stops, retries, follows citations and resets conversation
     assert.match(document.body.textContent!, /正在阅读《活动准入》/);
     assert.doesNotMatch(
       document.body.textContent!,
-      /wiki\/domains|technical label|read_document/,
+      /wiki\/rules|technical label|read_document/,
     );
     await act(async () => {
       pendingStream.enqueue(
@@ -162,7 +162,7 @@ test("chat UI streams, stops, retries, follows citations and resets conversation
     );
     assert.doesNotMatch(
       document.querySelector(".knowledge-content")!.textContent!,
-      /wiki\/domains/,
+      /wiki\/rules/,
     );
     await click(
       [...document.querySelectorAll(".knowledge-content a")].find(

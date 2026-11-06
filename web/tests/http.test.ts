@@ -215,10 +215,11 @@ test("Wiki switching updates all reads, rejects stale clients and persists selec
   );
   const selectionFile = path.join(base, "state/selection.json");
   const root = path.join(base, "中文 Wiki");
-  await mkdir(path.join(root, "wiki/domains"), { recursive: true });
+  await mkdir(path.join(root, "wiki"), { recursive: true });
   await mkdir(path.join(root, "raw"));
   await writeFile(path.join(root, "wiki/schema.md"), "# Schema");
   await writeFile(path.join(root, "wiki/index.md"), "# Selected Wiki");
+  await writeFile(path.join(root, "wiki/overview.md"), "# Overview");
   const s = await serve({}, selectionFile);
   const select = (p: string, wikiId = config.wikiId, headers = {}) =>
     s.request("/api/wiki/select", {

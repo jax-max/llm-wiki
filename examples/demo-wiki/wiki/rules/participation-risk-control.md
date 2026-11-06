@@ -1,9 +1,10 @@
 # 参与频率风控
 
 > Type: Rule
+> Domain: lottery-platform
 > Aliases: LotteryRiskService; risk control
 > Sources: 美团技术团队（文彬、子维），2017-12-22
-> Raw: [领域驱动设计在互联网业务开发中的实践](../../../../raw/meituan-tech/2026-09-18-ddd-in-practice.md)
+> Raw: [领域驱动设计在互联网业务开发中的实践](../../raw/meituan-tech/2026-09-18-ddd-in-practice.md)
 > Updated: 2026-10-15
 
 ## Overview
