@@ -261,17 +261,22 @@ python3 -m unittest discover -s tests -v
 
 ```sh
 python3 skills/wiki-test/scripts/wiki_test.py generate /path/to/your-project
-# Agent 只阅读 Wiki，完成场景出题、cores.json 和 wiki-tests/quality.md。
+# Agent 只阅读 Wiki，处理待审查项，完成用例、cores.json 和 wiki-tests/quality.md。
 python3 skills/wiki-test/scripts/wiki_test.py check /path/to/your-project
-python3 skills/wiki-test/scripts/wiki_test.py run /path/to/your-project
+python3 skills/wiki-test/scripts/wiki_test.py run /path/to/your-project            # 回归
+python3 skills/wiki-test/scripts/wiki_test.py run /path/to/your-project --verify-tests
+python3 skills/wiki-test/scripts/wiki_test.py run /path/to/your-project --verify-tests --case <id>
 ```
 
-`generate` 脚本只提供清单和草稿，语义审查由 Skill 完成。自然语言判断使用 Jev，
-需要 `TYPESAFE_API_KEY`；可计算断言在本地执行，普通正文不必改成 JSON。
-默认执行全部正式用例及变异，变异仅作用于内存副本。已有预期答案不会随正文自动更新。
+`generate` 脚本提供清单、草稿和按变更触发的审查队列（受影响的用例/cores/变异、
+绑定、页面）；语义审查由 Skill 完成，并按扫描版本逐项标记完成。自然语言判断
+使用 Jev，需要 `TYPESAFE_API_KEY`；可计算断言在本地执行，普通正文不必改成 JSON。
+默认 `run` 只执行已批准的基线；`--verify-tests` 额外在内存中应用已批准的变异，
+`--case` 验证指定用例。已有预期答案不会随正文自动更新。
 
 版本控制纳入 `wiki-tests/suite.json`、`cores.json` 和 `inventory.json`。
-`wiki-tests/quality.md` 记录审查范围及未解决的核心场景问题；`latest.md` 优先展示失败场景与 Wiki 位置，
-统计数字仅作辅助。测试通过不表示质量问题已解决，也不承诺页面或句子覆盖完整。
+`wiki-tests/quality.md` 以稳定 ID 记录已定位的问题；审查范围与扫描版本记录在
+`reports/authoring.json`。`latest.md` 优先展示失败场景、Wiki 位置和本次运行范围，
+统计数字仅作辅助。测试通过不表示质量问题已解决，也不承诺句子或页面覆盖完整。
 报告可忽略或保留为审查产物。详见 [Skill](skills/wiki-test/SKILL.md)、
 [格式](skills/wiki-test/references/test-format.md)与[验收步骤](skills/wiki-test/references/acceptance.md)。

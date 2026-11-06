@@ -39,7 +39,8 @@ The default wiki is `examples/demo-wiki`. Set `WIKI_ROOT` to use your own wiki.
 Choose `anthropic-messages` with an Anthropic host root (without `/v1`), or
 `openai-completions` with the provider's API base URL (commonly ending in `/v1`).
 Credentials stay on the server. `PORT=3002` fixes the backend/production port;
-`WEB_PORT=5174` fixes the development page port. Set both in `web/.env`.
+`WEB_PORT=5174` fixes the development page port; the two must differ. Set both
+in `web/.env`.
 An occupied port causes an error instead of an automatic port change.
 Restart after changing the configuration.
 
@@ -299,7 +300,8 @@ python3 skills/wiki-test/scripts/wiki_test.py run /path/to/your-project --verify
 The generate script supplies inventory, drafts and a change-triggered review
 queue (affected cases/cores/mutations, bindings, pages); the Skill performs
 semantic review and marks items done per scan version. Natural-language
-judgments use Jev with `TYPESAFE_API_KEY`; computable assertions run locally.
+judgments use Jev with `TYPESAFE_API_KEY`, set in the repository-root `.env`
+(see `.env.example`); computable assertions run locally.
 Ordinary prose needs no JSON rewrite. The default `run` executes approved
 baselines only; `--verify-tests` additionally applies approved mutations in
 memory, and `--case` verifies selected cases. Existing expected answers never
