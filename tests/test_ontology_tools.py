@@ -64,6 +64,18 @@ Models a widget lifecycle.
 
 
 class InitWikiTest(unittest.TestCase):
+    def test_lint_ignores_test_assets(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self.assertEqual(run(INIT, root).returncode, 0)
+            # Even an invalid test suite is not lint's business: wiki-lint and
+            # wiki-test have no dependency in either direction.
+            (root / "wiki-tests").mkdir()
+            (root / "wiki-tests/suite.json").write_text('{"version": 99}')
+            result = run(LINT, root, "--strict")
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertNotIn("test asset", result.stdout + result.stderr)
+
     def test_creates_workflow_skeleton_idempotently(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

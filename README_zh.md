@@ -42,8 +42,7 @@ npm --prefix web run dev
 不会自动更换端口；修改配置后需要重启。
 
 可以先问“用户参与抽奖需要满足什么条件？”，再追问“这些规则约束哪些流程？”；
-也可以问“抽奖活动有哪些状态？”，然后追问“这个结论的原始依据是什么？”。
-示例中的活动生命周期来自明确标注的教学补充来源，回答应说明这一点，不能归因于原技术文章。
+也可以就任一回答追问“这个结论的原始依据是什么？”。
 
 应用仅在本机运行。问答只读取知识库；「添加资料」可将 URL 或上传文件编译为预览，经人工确认后写入当前 Wiki，维护也可继续使用现有 Skills。
 模型请求会将问题与选取的资料发送给所配置的模型提供方。
@@ -116,7 +115,7 @@ Entity 归属一个主领域，其他领域通过链接引用而非复制。仅�
 承重事实始终可追溯到 `raw/` 下的不可变文件。
 
 生命周期：`wiki-init` 创建 wiki，`wiki-ingest` 编译来源，`wiki-query` 回答，
-`wiki-lint` 检查。
+`wiki-lint` 检查结构，`wiki-test` 执行知识测试。
 
 ## Skills
 
@@ -126,29 +125,29 @@ Entity 归属一个主领域，其他领域通过链接引用而非复制。仅�
 | `wiki-ingest` | 添加来源并编译 Entity、Workflow、Rule、StateMachine 或 Event 页面。Web 界面（`web/`）也支持 URL/文件摄入：Agent 在 staging 副本编译，逐文件 diff 预览确认后写入。 |
 | `wiki-query` | 只读地从本地 wiki 回答问题。 |
 | `wiki-lint` | 检查证据、schema、普通链接与关系结构。 |
+| `wiki-test` | 检查 Wiki 核心逻辑，报告缺口与冲突，执行场景回归测试和变异。 |
 
 - `wiki-init` 幂等，且拒绝改动没有 `schema.md` 的已有 `wiki/`。
 - `wiki-ingest` 先把原文完整存入 `raw/` 并在其 log 条目记录文件 SHA-256，规划候选矩阵（对每种页面类型给出 Added / Updated / Reused / N-A 处置，每个 N/A 都要有可溯源的理由），再编译页面——页面中每个精确数字、日期、引文都必须逐字出现在所链接的 Raw 文件中，且每次创建或重编译的页面都盖当日的 `Updated` 日期。没有增量知识的来源只保留 Raw 并记录 `Disposition: No material`。面对链接清单或多个文件时走批量摄入：先保存全部 raw，再逐个顺序编译，绝不并行。
 - `wiki-query` 只读：搜索 `wiki/domains/`，沿 Relations 扩展（Inverse 仅作查询时遍历提示，不写镜像边），区分可溯源事实与综合推断，并报告证据缺口。
 - `wiki-lint` 运行证据与 schema 两个检查器，向 `wiki/log.md` 追加一条结果；`--strict` 下发现问题即非零退出，供 CI 使用。它还会重算每个 raw 文件的 SHA-256 并与摄入时记录的摘要比对，标记被改动过的证据；并以摘要锚定的摄入日期校验页面 `Updated`，标记落后于其证据最新摄入的页面。自动修复仅限无歧义的链接与索引修复。
 
-`skills/` 下是五个自包含 skill。其中 `skills/llm-wiki/` 是导航器，负责路由
-到其余四个；把 `skills/*` 复制进 skills 目录即装上整套（见快速开始）。
+`skills/` 下是六个 skill。其中 `skills/llm-wiki/` 是导航器，负责路由
+到其余五个；把 `skills/*` 复制进 skills 目录即装上整套（见快速开始）。
 
 ## 示例：demo-wiki
 
-`examples/demo-wiki/` 在 `lottery-platform` 领域演示全部五种页面类型：
-5 个 Entity、1 个 Workflow、4 个 Rule、1 个 StateMachine、2 个 Event 页面，
+`examples/demo-wiki/` 在 `lottery-platform` 领域演示页面类型：
+5 个 Entity、1 个 Workflow、4 个 Rule、2 个 Event 页面，
 全部收录在 `wiki/index.md`。
 
 美团技术博客《领域驱动设计在互联网业务开发中的实践》全文提供业务对象、参与
 流程和规则，以及建模为 Event 类型的用户参与和奖品发放行为。Event 页展示业务
 发生及其上下文，不声称原文实现了事件消息，也不虚构某次带日期的交易记录。
-`sendAward` 是方法，`SendResult` 是输出，均不作为事件别名。
+`sendAward` 是方法，`SendResult` 是输出，均不作为事件别名。原文没有定义
+抽奖活动的生命周期状态与迁移，因此示例不含 StateMachine 页面。
 
-原文没有定义生命周期状态与迁移，因此另在 `raw/demo-spec/` 提供明确标注为
-虚构教学设定的活动生命周期规格，用于演示 StateMachine。对应页面标明补充来源，
-让读者区分教学假设与原文知识。可打开中文页面，与各自链接的 Raw 来源逐条对照。
+可打开中文页面，与各自链接的 Raw 来源逐条对照。
 
 ```bash
 # 对示例运行只读检查。
@@ -178,7 +177,7 @@ mkdir -p <your-project>/.claude/skills && cp -R llm-wiki/skills/* <your-project>
 for s in "$(pwd)"/llm-wiki/skills/*; do ln -s "$s" ~/.claude/skills/; done
 ```
 
-带脚本的 skill（`wiki-init`、`wiki-lint`）要求 PATH 上有 Python 3.8+ ——
+带脚本的 skill（`wiki-init`、`wiki-lint`、`wiki-test`）要求 PATH 上有 Python 3.8+ ——
 仅标准库，无需 pip 安装任何依赖。macOS 与 Linux 均预装。Windows 原生
 环境需从 python.org 安装 Python，或执行 `winget install Python.Python.3.12`，
 并用 `python` 或 `py -3` 代替 `python3`（或直接使用 WSL）。Claude Code 在
@@ -256,3 +255,26 @@ python3 -m unittest discover -s tests -v
 ## 许可证
 
 [MIT](LICENSE)
+
+## 知识测试
+
+`wiki-test` 围绕 Wiki 的条件分支、前置条件、顺序、例外和跨页一致性生成场景测试。
+全流程只依据 `wiki/`，严禁读取 `raw/` 或跟随来源链接。
+每题检查一个主要结论，预期答案与解释依据绑定的 Wiki；无法确定答案时，报告缺口、歧义或冲突，不强行批准。
+
+```sh
+python3 skills/wiki-test/scripts/wiki_test.py generate /path/to/your-project
+# Agent 只阅读 Wiki，完成场景出题、cores.json 和 reports/quality.md。
+python3 skills/wiki-test/scripts/wiki_test.py check /path/to/your-project
+python3 skills/wiki-test/scripts/wiki_test.py run /path/to/your-project
+```
+
+`generate` 脚本只提供清单和草稿，语义审查由 Skill 完成。自然语言判断使用 Jev，
+需要 `TYPESAFE_API_KEY`；可计算断言在本地执行，普通正文不必改成 JSON。
+默认执行全部正式用例及变异，变异仅作用于内存副本。已有预期答案不会随正文自动更新。
+
+版本控制纳入 `wiki-tests/suite.json`、`cores.json` 和 `inventory.json`。
+`reports/quality.md` 记录审查范围及未解决的核心场景问题；`latest.md` 优先展示失败场景与 Wiki 位置，
+统计数字仅作辅助。测试通过不表示质量问题已解决，也不承诺页面或句子覆盖完整。
+报告可忽略或保留为审查产物。详见 [Skill](skills/wiki-test/SKILL.md)、
+[格式](skills/wiki-test/references/test-format.md)与[验收步骤](skills/wiki-test/references/acceptance.md)。

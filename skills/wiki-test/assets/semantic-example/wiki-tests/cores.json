@@ -1,0 +1,23 @@
+{
+  "cores": [
+    {
+      "core": "退货期限：期限内允许、超期拒绝",
+      "cases": [
+        "within",
+        "late"
+      ],
+      "mutations": [
+        "shorter-window"
+      ]
+    },
+    {
+      "core": "定制商品例外优先于一般期限",
+      "cases": [
+        "custom"
+      ],
+      "mutations": [
+        "allow-custom"
+      ]
+    }
+  ]
+}

@@ -1,11 +1,11 @@
 ---
 name: llm-wiki
-description: Navigate a workflow-oriented personal research wiki. Use to choose or coordinate wiki-init, wiki-ingest, wiki-query, or wiki-lint. Chinese triggers: 知识库, 整理成 wiki, 摄入, 查知识库, 检查 wiki.
+description: Navigate a workflow-oriented personal research wiki. Use to choose or coordinate wiki-init, wiki-ingest, wiki-query, wiki-lint, or wiki-test. Chinese triggers: 知识库, 整理成 wiki, 摄入, 查知识库, 检查 wiki, 知识测试.
 ---
 
 # Workflow-Oriented LLM Wiki
 
-This is a suite of four skills for durable, source-grounded research knowledge.
+This routes five skills for durable, source-grounded research knowledge.
 
 | Need | Skill |
 |---|---|
@@ -13,8 +13,9 @@ This is a suite of four skills for durable, source-grounded research knowledge.
 | Add a URL, file, or pasted source | `wiki-ingest` |
 | Ask what the wiki knows | `wiki-query` |
 | Check evidence and structure | `wiki-lint` |
+| Generate and run knowledge tests, mutations and coverage | `wiki-test` |
 
-The scripted skills (`wiki-init`, `wiki-lint`) require Python 3.8+ on PATH —
+The scripted skills (`wiki-init`, `wiki-lint`, `wiki-test`) require Python 3.8+ on PATH —
 standard library only, no pip installs. On native Windows the interpreter may
 be `python` or `py -3`.
 

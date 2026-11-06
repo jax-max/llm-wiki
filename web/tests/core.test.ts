@@ -168,10 +168,10 @@ test("Chinese and alias search, prose pagination, real inbound/outbound edges an
   );
   assert.equal(
     documentPath(
-      "../../../../raw/demo-spec/2026-10-15-lottery-lifecycle.md",
+      "../../../../raw/meituan-tech/2026-09-18-ddd-in-practice.md",
       rule,
     ),
-    "raw/demo-spec/2026-10-15-lottery-lifecycle.md",
+    "raw/meituan-tech/2026-09-18-ddd-in-practice.md",
   );
 });
 test("path traversal, encoded attacks, symlink escapes, empty wiki and broken relations", async () => {
@@ -353,15 +353,13 @@ test("timeout, budget and cancellation do not return incomplete history", async 
   setTimeout(() => c.abort(new Error("cancel-test")), 15);
   await assert.rejects(pending, /cancel-test/);
 });
-test("demo source lifecycle is explicitly educational and query does not mutate files", async () => {
+test("demo query does not mutate files", async () => {
   const wiki = new Wiki(config.root);
   const before = await wiki.snapshot();
-  const life = await wiki.read(
-    "wiki/domains/lottery-platform/state-machines/lottery-activity.md",
+  const raw = await wiki.read(
+    "raw/meituan-tech/2026-09-18-ddd-in-practice.md",
   );
-  assert.match(life.text, /教学/);
-  const raw = await wiki.read("raw/demo-spec/2026-10-15-lottery-lifecycle.md");
-  assert.match(raw.text, /教学/);
+  assert.match(raw.text, /领域驱动/);
   await runQuery(
     config,
     "活动有哪些状态？",

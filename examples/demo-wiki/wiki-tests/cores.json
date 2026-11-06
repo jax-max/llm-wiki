@@ -1,0 +1,126 @@
+{
+  "method": "按核心逻辑与独特错误场景组织，不承诺句子或页面完备",
+  "cores": [
+    {
+      "core": "活动准入的职责与必需前置条件",
+      "cases": [
+        "admission-scope",
+        "admission-not-bypassed"
+      ],
+      "mutations": [
+        "m-admission-mandatory"
+      ]
+    },
+    {
+      "core": "登录、风控、准入的相对顺序",
+      "cases": [
+        "login-before-risk",
+        "risk-before-admission"
+      ],
+      "mutations": [
+        "m-risk-order"
+      ]
+    },
+    {
+      "core": "风控限制频率及失败处理的知识边界",
+      "cases": [
+        "risk-purpose",
+        "risk-failure-unknown"
+      ],
+      "mutations": [],
+      "unresolved": [
+        "Q2"
+      ]
+    },
+    {
+      "core": "尝试计数的时机与通用性",
+      "cases": [
+        "counting-order",
+        "count-before-selection",
+        "counting-exclusive-false"
+      ],
+      "mutations": [
+        "m-counting-order"
+      ]
+    },
+    {
+      "core": "奖池匹配的城市优先与得分回退",
+      "cases": [
+        "city-first",
+        "score-fallback",
+        "selection-cross-page"
+      ],
+      "mutations": [
+        "m-city-priority"
+      ],
+      "unresolved": [
+        "Q1"
+      ]
+    },
+    {
+      "core": "先池后品、概率选奖、未命中返回空",
+      "cases": [
+        "selection-pool-first",
+        "probability-mechanism",
+        "selection-no-hit-empty"
+      ],
+      "mutations": [],
+      "unresolved": [
+        "Q3"
+      ]
+    },
+    {
+      "core": "概率配置归属运营、选奖行为归属奖池",
+      "cases": [
+        "probability-configured",
+        "pool-not-service"
+      ],
+      "mutations": [
+        "m-prob-config"
+      ]
+    },
+    {
+      "core": "应用服务协调及成功/失败结果",
+      "cases": [
+        "flow-appservice-coordinates",
+        "flow-return",
+        "flow-failure-return"
+      ],
+      "mutations": []
+    },
+    {
+      "core": "选中奖品后的发奖调用与响应转换",
+      "cases": [
+        "flow-send-award",
+        "flow-response-conversion"
+      ],
+      "mutations": []
+    },
+    {
+      "core": "库存通用性",
+      "cases": [
+        "stock-generic"
+      ],
+      "mutations": [
+        "m-stock-generic"
+      ]
+    },
+    {
+      "core": "城市换算与外部券接口隔离",
+      "cases": [
+        "city-from-client",
+        "coupon-anticorruption"
+      ],
+      "mutations": []
+    },
+    {
+      "core": "结果对象与事件身份边界",
+      "cases": [
+        "sendresult-not-event"
+      ],
+      "mutations": [
+        "m-event-alias"
+      ]
+    }
+  ]
+}

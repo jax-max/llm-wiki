@@ -1,0 +1,52 @@
+{
+  "rules": {
+    "activity-admission": {
+      "page": "wiki/domains/lottery-platform/rules/activity-admission.md",
+      "hash": "83d76a50cfc273e7de5e718ccea932e07140ac150635263b79e804b8c86dff7f"
+    },
+    "risk-control": {
+      "page": "wiki/domains/lottery-platform/rules/participation-risk-control.md",
+      "hash": "c4e33ca9298550d627a995c42a0ab873600b83b35233b4273d03b1da29a3e5f9"
+    },
+    "attempt-counting": {
+      "page": "wiki/domains/lottery-platform/rules/lottery-attempt-counting.md",
+      "hash": "9395da8ba57b50234f10e2dac18abe3bd866c3341e5160ce5a17293732e05192"
+    },
+    "award-selection": {
+      "page": "wiki/domains/lottery-platform/rules/award-selection.md",
+      "hash": "46cc41076c64623aff55b8827ae7bf0a11541c7a37a3af597dec8784e426c8fa"
+    },
+    "participation-flow": {
+      "page": "wiki/domains/lottery-platform/workflows/user-participation.md",
+      "hash": "d7f8aa2c383b6451262956d5d608f7e276b32b843589968b655c412388afd7a0"
+    },
+    "lottery-activity": {
+      "page": "wiki/domains/lottery-platform/entities/lottery-activity.md",
+      "hash": "f8ef4fcaf23d99ebde78d0ff87667b67ca148a431e1cf13816c226d14973144d"
+    },
+    "award-pool": {
+      "page": "wiki/domains/lottery-platform/entities/award-pool.md",
+      "hash": "9e1eaab484a7bd016e49beb72dcfead37f960a563e9180b6251829eddfc3d26b"
+    },
+    "stock-independence": {
+      "page": "wiki/domains/lottery-platform/entities/stock.md",
+      "hash": "d9e849c2cdeab88f385706040c784660cf57cca286b1872d2e0746befca8bc6e"
+    },
+    "user-context": {
+      "page": "wiki/domains/lottery-platform/entities/user.md",
+      "hash": "b771034eaa32009f292cca53e87d56f0d977a134d02750c0431b90865bc66b62"
+    },
+    "award-issued-event": {
+      "page": "wiki/domains/lottery-platform/events/award-issued.md",
+      "hash": "524cc6bc3cfb8917590f955a0b805d61f281d29167cb4e65cf5587f0543833af"
+    },
+    "domain-contexts": {
+      "page": "wiki/domains/lottery-platform/overview.md",
+      "hash": "ca01eb50b21a28e9b711f77630e00238ee9af8ce89dffe36821d3a7e8c85cfe1"
+    }
+  },
+  "pages_without_rules": [
+    "wiki/domains/lottery-platform/entities/award.md",
+    "wiki/domains/lottery-platform/events/lottery-participation.md"
+  ]
+}

@@ -10,3 +10,9 @@ web/.env.*
 !web/.env.example
 
 web/.local/
+
+# Generated knowledge-test reports
+**/wiki-tests/reports/
+
+# Local API credentials
+/.env

@@ -121,3 +121,8 @@ Finish with a batch summary — per source: disposition and pages added or
 updated — and suggest running `wiki-lint`.
 
 Read [templates](references/templates.md) for exact file formats.
+
+When pages contain `wiki-rule` executable blocks, preserve stable rule IDs and
+keep structured facts aligned with the source and prose. If `wiki-tests/` exists,
+report affected rules and suggest generating/reviewing the test set with
+`wiki-test`. Never rewrite confirmed expected answers as part of ingest.

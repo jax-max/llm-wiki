@@ -44,9 +44,7 @@ An occupied port causes an error instead of an automatic port change.
 Restart after changing the configuration.
 
 Try “用户参与抽奖需要满足什么条件？”, then “这些规则约束哪些流程？”,
-or ask “抽奖活动有哪些状态？” and follow up with “这个结论的原始依据是什么？”.
-The demo lifecycle is an explicit teaching supplement; answers should identify
-that source rather than attributing it to the original technical article.
+and follow up with “这个结论的原始依据是什么？”.
 
 The app runs on this computer. Chat only reads the Wiki; **Add source** compiles URLs or uploaded files into a preview and writes changes after manual confirmation. Maintenance can also continue through the existing Skills. Model requests
 send the question and selected evidence to the configured provider. See the
@@ -126,7 +124,7 @@ Every typed page declares `Type`, `Raw` links, and the `Updated` compile date
 Load-bearing facts remain traceable to immutable files under `raw/`.
 
 The lifecycle: `wiki-init` creates the wiki, `wiki-ingest` compiles sources,
-`wiki-query` answers, `wiki-lint` checks.
+`wiki-query` answers, `wiki-lint` checks structure, and `wiki-test` runs knowledge tests.
 
 ## Skills
 
@@ -136,20 +134,21 @@ The lifecycle: `wiki-init` creates the wiki, `wiki-ingest` compiles sources,
 | `wiki-ingest` | Adds sources and compiles Entity, Workflow, Rule, StateMachine, or Event pages. The web app (`web/`) also ingests URLs/files: the agent compiles in a staging copy, applied after a per-file diff preview. |
 | `wiki-query` | Answers from the local wiki without writing. |
 | `wiki-lint` | Checks evidence, schema, ordinary links, and relation structure. |
+| `wiki-test` | Reviews Wiki core logic, reports gaps/conflicts, and runs scenario regression tests and mutations. |
 
 - `wiki-init` is idempotent and refuses to overwrite an existing `wiki/` that has no `schema.md`.
 - `wiki-ingest` stores the source verbatim under `raw/`, records the file's SHA-256 in its log entry, plans a candidate matrix (an Added / Updated / Reused / N-A disposition per page type, where every N/A needs a source-grounded reason), then compiles pages in which each exact number, date, and quotation must appear verbatim in the linked Raw file and every created or recompiled page is stamped with the compile-date `Updated`. A source with no new knowledge is kept as Raw with `Disposition: No material`. For a link list or multiple files it runs batch ingest: save every raw first, then compile the sources one at a time — never in parallel.
 - `wiki-query` is read-only: it searches `wiki/domains/`, expands along Relations (inverse verbs are query-time traversal hints, never mirrored edges), and separates grounded facts from synthesis, reporting evidence gaps.
 - `wiki-lint` runs the evidence and schema checkers, appends one result to `wiki/log.md`, and exits non-zero under `--strict` so findings fail CI. It also recomputes each raw file's SHA-256 against the digest recorded at ingest, flagging modified evidence, and flags pages whose `Updated` predates the latest digest-anchored ingest of their Raw. Auto-fixing is limited to unambiguous link and index repairs.
 
-`skills/` contains five self-contained skills. `skills/llm-wiki/` is a
-navigator that routes to the other four; copy `skills/*` into a skills
+`skills/` contains six skills. `skills/llm-wiki/` is a
+navigator that routes to the other five; copy `skills/*` into a skills
 directory to install the whole suite (see Quick start).
 
 ## Example: demo-wiki
 
-`examples/demo-wiki/` demonstrates all five page types in the
-`lottery-platform` domain: 5 Entity, 1 Workflow, 4 Rule, 1 StateMachine, and
+`examples/demo-wiki/` demonstrates the page types in the
+`lottery-platform` domain: 5 Entity, 1 Workflow, 4 Rule, and
 2 Event pages, all indexed in `wiki/index.md`.
 
 The full Chinese Meituan article on domain-driven design provides the business
@@ -157,12 +156,8 @@ objects, participation workflow, rules, and the participation and award-issuance
 behaviors modeled as Event types. These Event pages illustrate business
 occurrences and their context; they do not claim an event-message implementation
 or a real dated transaction. `sendAward` is a method and `SendResult` is output,
-not event aliases.
-
-The article does not define lifecycle states or transitions. A separate,
-explicitly fictional teaching specification in `raw/demo-spec/` supplies the
-activity lifecycle used by the StateMachine example. Its page identifies that
-source so readers can distinguish the teaching assumptions from the article.
+not event aliases. The article does not define lifecycle states or transitions,
+so the demo has no StateMachine page.
 Open the Chinese pages alongside their linked Raw sources to inspect the evidence.
 
 ```bash
@@ -193,7 +188,7 @@ symlinks are supported in skills directories:
 for s in "$(pwd)"/llm-wiki/skills/*; do ln -s "$s" ~/.claude/skills/; done
 ```
 
-The scripted skills (`wiki-init`, `wiki-lint`) require Python 3.8+ on PATH —
+The scripted skills (`wiki-init`, `wiki-lint`, `wiki-test`) require Python 3.8+ on PATH —
 standard library only, no pip installs. macOS and Linux ship it. On native
 Windows, install Python from python.org or via
 `winget install Python.Python.3.12` and use `python` or `py -3` instead of
@@ -285,3 +280,32 @@ This is an unofficial community implementation of that workflow.
 ## License
 
 [MIT](LICENSE)
+
+## Knowledge tests
+
+`wiki-test` checks Wiki branches, prerequisites, order, exceptions and cross-page
+consistency with concrete scenarios. Every stage uses only `wiki/`: reading
+`raw/` or following source links is forbidden. Derive each single-conclusion
+expected answer from bound Wiki text. Report unresolved gaps, ambiguities or
+conflicts instead of approving an invented answer.
+
+```sh
+python3 skills/wiki-test/scripts/wiki_test.py generate /path/to/your-project
+# Agent reads Wiki only and completes cases, cores.json and reports/quality.md.
+python3 skills/wiki-test/scripts/wiki_test.py check /path/to/your-project
+python3 skills/wiki-test/scripts/wiki_test.py run /path/to/your-project
+```
+
+The generate script supplies inventory and drafts; the Skill performs semantic
+review. Natural-language judgments use Jev with `TYPESAFE_API_KEY`; computable
+assertions run locally. Ordinary prose needs no JSON rewrite. Execution runs all
+approved cases and mutations, applying mutations only in memory. Existing expected
+answers never change automatically with the prose.
+
+Version `wiki-tests/suite.json`, `cores.json` and `inventory.json`.
+`reports/quality.md` records reviewed scope and unresolved core scenarios;
+`latest.md` prioritizes failed scenarios and Wiki locations, with statistics as
+auxiliary inventory only. A passing run does not resolve quality findings or
+establish sentence/page completeness. Reports may be ignored or retained as review
+artifacts. See the [Skill](skills/wiki-test/SKILL.md), [format](skills/wiki-test/references/test-format.md)
+and [acceptance steps](skills/wiki-test/references/acceptance.md).

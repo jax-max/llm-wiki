@@ -1,0 +1,544 @@
+{
+  "version": 1,
+  "model": "jev-latest",
+  "knowledge": [
+    {
+      "id": "activity-admission",
+      "page": "wiki/domains/lottery-platform/rules/activity-admission.md",
+      "critical": true,
+      "lines": [
+        11,
+        15
+      ],
+      "anchors": [
+        "活动准入上下文集中管理用户参与抽奖活动的限制条件，并在用户参与抽奖流程中于实际抽奖前执行检查。",
+        "抽奖活动的开始和结束时间、用户可参与抽奖的次数等限制条件统一由活动准入管理；只有通过活动准入检查后，用户才进入后续抽奖步骤。"
+      ]
+    },
+    {
+      "id": "risk-control",
+      "page": "wiki/domains/lottery-platform/rules/participation-risk-control.md",
+      "critical": true,
+      "lines": [
+        11,
+        15
+      ],
+      "anchors": [
+        "风控上下文用于应对刷单行为，并在用户参与抽奖流程中先于活动准入和抽奖执行。",
+        "抽奖活动可配置风控条件以限制用户参与抽奖的频率。应用服务先执行风险校验，再进行活动准入和抽奖；来源未展示风险校验失败时的具体处理。"
+      ]
+    },
+    {
+      "id": "attempt-counting",
+      "page": "wiki/domains/lottery-platform/rules/lottery-attempt-counting.md",
+      "lines": [
+        11,
+        15
+      ],
+      "anchors": [
+        "计数上下文是为抽奖、风控和活动准入提供访问接口的通用上下文；抽奖领域服务在读取抽奖活动聚合后增加抽奖计数。",
+        "每次进入抽奖领域服务时，先获取对应抽奖活动的聚合，再增加本次抽奖的尝试计数，随后选择奖池和奖品。计数能力同时服务于抽奖、风控和活动准入中涉及的次数限制。"
+      ]
+    },
+    {
+      "id": "award-selection",
+      "page": "wiki/domains/lottery-platform/rules/award-selection.md",
+      "critical": true,
+      "lines": [
+        11,
+        15
+      ],
+      "anchors": [
+        "该机制先依据抽奖场景为用户匹配可发奖的奖池，再在奖池内按运营预先配置的概率选择奖品。场景携带城市信息时按城市匹配；否则按抽奖得分匹配。",
+        "抽奖活动在多个奖池中选择与城市或得分相匹配的奖池。选定奖池后，累加其中各奖品的被抽中概率，生成随机数，并按累计概率区间命中一个奖品；没有命中时返回空结果。"
+      ]
+    },
+    {
+      "id": "participation-flow",
+      "page": "wiki/domains/lottery-platform/workflows/user-participation.md",
+      "critical": true,
+      "lines": [
+        11,
+        22
+      ],
+      "anchors": [
+        "用户从活动页面参与抽奖时，以用户、抽奖活动和抽奖场景为边界，应用服务负责协调登录校验、风控、活动准入和抽奖领域服务；抽奖成功时返回奖品信息，否则返回错误结果。领域服务内部读取抽奖活动聚合、增加抽奖计数、选择适配奖池和奖品，并调用发奖服务。",
+        "6. 应用服务根据抽奖响应返回奖品信息或失败结果；用户领奖记录作为领奖凭据和存根。"
+      ]
+    },
+    {
+      "id": "lottery-activity",
+      "page": "wiki/domains/lottery-platform/entities/lottery-activity.md",
+      "lines": [
+        11,
+        17
+      ],
+      "anchors": [
+        "抽奖活动是抽奖平台的核心业务对象，由运营在 M 端配置；一个抽奖活动包含多个奖品，可以针对一个或多个用户群体——通过为不同群体配置各自的奖池实现。C 端用户通过活动页面参与。工程上由聚合根 `DrawLottery` 承载：持有抽奖活动的 `lotteryId` 与该活动下所有可用奖池的列表，`setLotteryId` 会对非法的抽奖 id 抛出 `IllegalArgumentException`。",
+        "用户参与抽奖时，应用服务按序完成校验用户登录信息、风控校验与活动准入检查，再执行抽奖：获取抽奖配置聚合根、增加抽奖计数（`incrTryCount`）、选中奖池、选中奖品，最后经发奖服务（`AwardSendService`）发出奖品，并以奖品信息（`PrizeInfo`）返回结果。"
+      ]
+    },
+    {
+      "id": "award-pool",
+      "page": "wiki/domains/lottery-platform/entities/award-pool.md",
+      "lines": [
+        11,
+        13
+      ],
+      "anchors": [
+        "奖池是抽奖活动与奖品之间的配置单元：一个奖池针对一个特定的用户群体（`UserGroup`）设置多个奖品。用户群体有多种区别方式，如按照用户所在城市区分、按照新老客区分。工程上奖池被建模为 `AwardPool`，字段包括奖池支持的城市 `cityIds`、奖池支持的得分 `scores`、奖池匹配的用户类型 `userGroupType`，以及奖池中包含的奖品列表。",
+        "奖池承担按概率选奖的领域行为：奖池里配置多个奖项，各奖项的被抽中概率由运营预先配置；`matchedCity` 判断当前奖池是否与城市匹配，`matchedScore` 判断是否与用户得分匹配；`randomGetAward` 累加奖池内各奖品的被抽中概率，生成随机数并按累计概率区间命中一个奖品返回。在领域模型的开发方式下，使用概率选择对应的奖品这一逻辑内聚在奖池对象内，而非写在服务层。"
+      ]
+    },
+    {
+      "id": "stock-independence",
+      "page": "wiki/domains/lottery-platform/entities/stock.md",
+      "lines": [
+        11,
+        13
+      ],
+      "anchors": [
+        "库存是抽奖平台中管理发放内容数量与核销的业务对象，被划分为独立的库存上下文。库存的行为与奖品本身相对解耦，库存的关注点更多是库存内容的核销；且库存本身具备通用性，可以被奖品之外的内容使用。",
+        "奖品的库存量属于奖品自身的配置之一，与被抽中的概率、最多被一个用户抽中的次数等一同维护。"
+      ]
+    },
+    {
+      "id": "user-context",
+      "page": "wiki/domains/lottery-platform/entities/user.md",
+      "lines": [
+        11,
+        13
+      ],
+      "anchors": [
+        "抽奖平台的用户划分为运营和用户：运营对抽奖活动的配置十分复杂但相对低频；用户通过活动页面参与不同类型的抽奖活动，对这些配置的使用是高频次且无感知的。C 端还存在一些刷单行为，活动通过风控配置限制用户参与抽奖的频率。",
+        "用户参与抽奖时的场景信息由 `LotteryContext` / `DrawLotteryContext` 承带：包括 `getUserId`、`getLotteryId`、抽奖得分 `getGameScore`、经纬度 `getLat` / `getLng` 等；用户所在的城市信息（`MtCityInfo`）由防腐层 `UserCityInfoFacade` 以抽奖请求参数为入参，调用外部用户城市信息 RPC 服务（`LbsService`）换算得到。用户抽中奖品后，以用户领奖记录（`UserLotteryLog`）作为领奖凭据和存根。"
+      ]
+    },
+    {
+      "id": "award-issued-event",
+      "page": "wiki/domains/lottery-platform/events/award-issued.md",
+      "lines": [
+        10,
+        12
+      ],
+      "anchors": [
+        "抽奖服务选中奖品后调用发奖服务，将选中的奖品发放给用户。本页将原文描述的发奖行为建模为事件类型，展示 Event 如何连接参与者、业务对象与工作流；不代表某次奖品已成功到账的真实记录。",
+        "`sendAward` 是发奖方法，`SendResult` 是抽奖结果输出，二者都不是事件名称的别名。发奖调用、发奖响应转换为抽奖响应，以及用户领奖记录作为领奖凭据和存根的说明，见[用户参与抽奖](../workflows/user-participation.md)。原文未定义独立事件消息、投递机制或消费方，也未给出具体发奖时间与凭据值。"
+      ]
+    },
+    {
+      "id": "domain-contexts",
+      "page": "wiki/domains/lottery-platform/overview.md",
+      "lines": [
+        7,
+        7
+      ],
+      "anchors": [
+        "该领域以抽奖为核心上下文，并与活动准入、风控、计数、库存上下文协作：活动准入收拢开始/结束时间和参与次数等限制；风控限制用户参与频率；计数上下文为抽奖、风控与活动准入提供访问接口；库存负责奖品之外也可复用的库存核销。抽奖、风控、活动准入、库存与计数在文中的映射为合作关系；抽奖发券时通过防腐层隔离券码、平台券与外卖券等外部上下文。",
+        "该领域以抽奖为核心上下文，并与活动准入、风控、计数、库存上下文协作：活动准入收拢开始/结束时间和参与次数等限制；风控限制用户参与频率；计数上下文为抽奖、风控与活动准入提供访问接口；库存负责奖品之外也可复用的库存核销。抽奖、风控、活动准入、库存与计数在文中的映射为合作关系；抽奖发券时通过防腐层隔离券码、平台券与外卖券等外部上下文。"
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "id": "admission-scope",
+      "kind": "semantic",
+      "status": "approved",
+      "question": "抽奖活动配置了开始时间、结束时间和参与次数限制，这些限制统一由活动准入管理。",
+      "expected": true,
+      "targets": [
+        "activity-admission"
+      ],
+      "context_rules": [],
+      "rationale": "活动准入 Rule 明确收拢这三类限制。防止把限制校验分散到抽奖内部。"
+    },
+    {
+      "id": "admission-not-bypassed",
+      "kind": "semantic",
+      "status": "approved",
+      "question": "用户未通过活动准入检查，仍可进入后续抽奖步骤。",
+      "expected": false,
+      "targets": [
+        "activity-admission"
+      ],
+      "context_rules": [],
+      "rationale": "活动准入 Rule 明确只有通过检查后才进入抽奖。防止跳过必需的前置检查。"
+    },
+    {
+      "id": "risk-before-admission",
+      "kind": "semantic",
+      "status": "approved",
+      "question": "用户参与抽奖时，应用服务先执行活动准入检查，再执行风险校验。",
+      "expected": false,
+      "targets": [
+        "risk-control"
+      ],
+      "context_rules": [],
+      "rationale": "风控 Overview 与 Rule 都明确风控先于活动准入。防止颠倒校验顺序。"
+    },
+    {
+      "id": "login-before-risk",
+      "kind": "semantic",
+      "status": "approved",
+      "question": "用户从活动页面发起抽奖时，登录校验先于风险校验。",
+      "expected": true,
+      "targets": [
+        "participation-flow"
+      ],
+      "context_rules": [],
+      "rationale": "工作流 Steps 1、2 先登录后风控。防止未校验登录就执行风控。"
+    },
+    {
+      "id": "risk-purpose",
+      "kind": "semantic",
+      "status": "approved",
+      "question": "活动可以通过风控配置限制用户参与抽奖的频率。",
+      "expected": true,
+      "targets": [
+        "risk-control"
+      ],
+      "context_rules": [],
+      "rationale": "风控 Rule 明确限制参与频率。防止把频率限制能力从风控职责中删除。"
+    },
+    {
+      "id": "counting-order",
+      "kind": "semantic",
+      "status": "approved",
+      "question": "一次抽奖领域服务调用中，先读取活动聚合，再增加本次尝试计数。",
+      "expected": true,
+      "targets": [
+        "attempt-counting"
+      ],
+      "context_rules": [],
+      "rationale": "计数 Overview 和 Rule 都明确聚合先于计数。防止在获取活动聚合前计数。"
+    },
+    {
+      "id": "count-before-selection",
+      "kind": "semantic",
+      "status": "approved",
+      "question": "一次抽奖领域服务调用中，在选择奖池之前增加本次尝试计数。",
+      "expected": true,
+      "targets": [
+        "attempt-counting"
+      ],
+      "context_rules": [],
+      "rationale": "计数 Rule 的顺序为获取聚合、计数、选择奖池和奖品。防止把尝试计数推迟到选奖之后。"
+    },
+    {
+      "id": "counting-exclusive-false",
+      "kind": "semantic",
+      "status": "approved",
+      "question": "风控和活动准入不使用计数上下文提供的接口。",
+      "expected": false,
+      "targets": [
+        "attempt-counting"
+      ],
+      "context_rules": [],
+      "rationale": "计数 Overview 明确为风控和活动准入提供接口。防止把通用能力错误收窄到抽奖。"
+    },
+    {
+      "id": "city-first",
+      "kind": "semantic",
+      "status": "approved",
+      "question": "抽奖场景同时携带城市信息和得分时，系统优先按城市信息匹配奖池。",
+      "expected": true,
+      "targets": [
+        "award-selection"
+      ],
+      "context_rules": [],
+      "rationale": "选奖 Overview 明确有城市按城市，否则按得分。防止城市和得分同时存在时选错分支。"
+    },
+    {
+      "id": "score-fallback",
+      "kind": "semantic",
+      "status": "approved",
+      "question": "抽奖场景没有城市信息但有得分时，系统按得分匹配奖池。",
+      "expected": true,
+      "targets": [
+        "award-selection"
+      ],
+      "context_rules": [],
+      "rationale": "选奖 Overview 的否则分支按得分匹配。防止丢掉无城市时的回退分支。"
+    },
+    {
+      "id": "selection-pool-first",
+      "kind": "semantic",
+      "status": "approved",
+      "question": "一次选奖中，先匹配奖池，再在该奖池内选择奖品。",
+      "expected": true,
+      "targets": [
+        "award-selection"
+      ],
+      "context_rules": [],
+      "rationale": "选奖 Overview 与 Rule 明确先池后品。防止跨过奖池匹配直接选品。"
+    },
+    {
+      "id": "probability-mechanism",
+      "kind": "semantic",
+      "status": "approved",
+      "question": "选定奖池后，系统根据随机数落入的累计概率区间确定奖品。",
+      "expected": true,
+      "targets": [
+        "award-pool"
+      ],
+      "context_rules": [],
+      "rationale": "奖池正文说明 randomGetAward 按累计概率区间命中奖品。防止将概率选奖误写为固定顺序选择。"
+    },
+    {
+      "id": "probability-configured",
+      "kind": "semantic",
+      "status": "approved",
+      "question": "奖池内的选奖概率由系统实时计算替代运营预先配置。",
+      "expected": false,
+      "targets": [
+        "award-pool"
+      ],
+      "context_rules": [],
+      "rationale": "奖池正文明确概率由运营预先配置。防止把配置职责改成运行时计算；不推断运营配置是否考虑库存。"
+    },
+    {
+      "id": "selection-no-hit-empty",
+      "kind": "semantic",
+      "status": "approved",
+      "question": "奖池内按累计概率选奖未命中任何奖品时，返回空结果。",
+      "expected": true,
+      "targets": [
+        "award-selection"
+      ],
+      "context_rules": [],
+      "rationale": "选奖 Rule 明确未命中返回空。防止无命中时编造默认奖品。"
+    },
+    {
+      "id": "pool-not-service",
+      "kind": "semantic",
+      "status": "approved",
+      "question": "按当前领域模型划分，概率选奖逻辑应放在应用服务层。",
+      "expected": false,
+      "targets": [
+        "award-pool"
+      ],
+      "context_rules": [],
+      "rationale": "奖池正文明确逻辑内聚奖池对象而非服务层。防止职责上移。"
+    },
+    {
+      "id": "flow-return",
+      "kind": "semantic",
+      "status": "approved",
+      "question": "抽奖成功时，应用服务将用户领奖记录作为抽奖结果返回。",
+      "expected": false,
+      "targets": [
+        "participation-flow"
+      ],
+      "context_rules": [],
+      "rationale": "工作流明确成功返回奖品信息，领奖记录是凭据和存根。防止混淆返回结果与领奖凭据。"
+    },
+    {
+      "id": "flow-failure-return",
+      "kind": "semantic",
+      "status": "approved",
+      "question": "应用服务收到抽奖失败响应时，向调用方返回错误结果。",
+      "expected": true,
+      "targets": [
+        "participation-flow"
+      ],
+      "context_rules": [],
+      "rationale": "工作流 Overview 与 Steps 6 明确失败返回错误结果。防止只保留成功分支。"
+    },
+    {
+      "id": "flow-send-award",
+      "kind": "semantic",
+      "status": "approved",
+      "question": "抽奖领域服务选中奖品后，通过发奖服务的 sendAward 方法发奖。",
+      "expected": true,
+      "targets": [
+        "participation-flow"
+      ],
+      "context_rules": [],
+      "rationale": "工作流正文和 Steps 5 明确 sendAward 调用。防止选中奖品后遗漏发奖。"
+    },
+    {
+      "id": "flow-response-conversion",
+      "kind": "semantic",
+      "status": "approved",
+      "question": "发奖服务返回响应后，领域服务通过 buildIssueResponse 将其转换为抽奖响应。",
+      "expected": true,
+      "targets": [
+        "participation-flow"
+      ],
+      "context_rules": [],
+      "rationale": "工作流正文明确转换方法和转换方向。防止把发奖响应直接当作抽奖响应。"
+    },
+    {
+      "id": "stock-generic",
+      "kind": "semantic",
+      "status": "approved",
+      "question": "库存能力可用于奖品之外的内容。",
+      "expected": true,
+      "targets": [
+        "stock-independence"
+      ],
+      "context_rules": [],
+      "rationale": "库存 Overview 明确具备通用性。防止将库存限定为某个奖品专用。"
+    },
+    {
+      "id": "city-from-client",
+      "kind": "semantic",
+      "status": "approved",
+      "question": "客户端提供经纬度后，系统无需调用外部城市信息服务即可直接把请求当作城市信息使用。",
+      "expected": false,
+      "targets": [
+        "user-context"
+      ],
+      "context_rules": [],
+      "rationale": "用户正文明确防腐层以请求为入参，调用外部 RPC 换算城市信息。防止省略城市换算。"
+    },
+    {
+      "id": "coupon-anticorruption",
+      "kind": "semantic",
+      "status": "approved",
+      "question": "抽奖发券时可以跳过防腐层，直接依赖外部券上下文的原生接口。",
+      "expected": false,
+      "targets": [
+        "domain-contexts"
+      ],
+      "context_rules": [],
+      "rationale": "领域概览明确通过防腐层隔离外部券上下文。防止删除接口隔离职责。"
+    },
+    {
+      "id": "risk-failure-unknown",
+      "kind": "semantic",
+      "status": "approved",
+      "question": "当前 Wiki 已经明确规定风险校验失败后返回给用户的具体响应。",
+      "expected": false,
+      "targets": [
+        "risk-control",
+        "participation-flow"
+      ],
+      "context_rules": [],
+      "rationale": "风控页与工作流均明确未展示该处理。防止把知识缺口当成已定义行为；不推断实际处理方案。"
+    },
+    {
+      "id": "flow-appservice-coordinates",
+      "kind": "semantic",
+      "status": "approved",
+      "question": "用户发起抽奖时，由应用服务协调登录、风控、准入与抽奖领域服务。",
+      "expected": true,
+      "targets": [
+        "participation-flow"
+      ],
+      "context_rules": [],
+      "rationale": "工作流 Overview 明确应用服务协调职责。防止把跨服务编排塞入单个领域对象。"
+    },
+    {
+      "id": "sendresult-not-event",
+      "kind": "semantic",
+      "status": "approved",
+      "question": "SendResult 是奖品发放事件的名称别名。",
+      "expected": false,
+      "targets": [
+        "award-issued-event"
+      ],
+      "context_rules": [],
+      "rationale": "发奖事件页明确 SendResult 是输出，且不是事件别名。防止将结果对象当成事件接口。"
+    },
+    {
+      "id": "selection-cross-page",
+      "kind": "semantic",
+      "status": "approved",
+      "question": "对于同时带有城市和得分的抽奖场景，活动页与选奖规则页规定的匹配依据一致，都是城市优先。",
+      "expected": true,
+      "targets": [
+        "lottery-activity",
+        "award-selection"
+      ],
+      "context_rules": [],
+      "rationale": "两页均写有城市按城市、否则按得分。防止修改一个页面后形成两种匹配规则。"
+    }
+  ],
+  "mutations": [
+    {
+      "id": "m-admission-mandatory",
+      "kind": "text",
+      "status": "approved",
+      "target": "activity-admission",
+      "before": "只有通过活动准入检查后，用户才进入后续抽奖步骤",
+      "after": "无需通过活动准入检查，用户即可进入后续抽奖步骤",
+      "cases": [
+        "admission-not-bypassed"
+      ],
+      "rationale": "准入由必需变为可绕过，未通过准入仍可抽奖的命题应由假变真。"
+    },
+    {
+      "id": "m-risk-order",
+      "kind": "text",
+      "status": "approved",
+      "target": "risk-control",
+      "before": "风控上下文用于应对刷单行为，并在用户参与抽奖流程中先于活动准入和抽奖执行。\n\n## Rule\n\n抽奖活动可配置风控条件以限制用户参与抽奖的频率。应用服务先执行风险校验，再进行活动准入和抽奖；来源未展示风险校验失败时的具体处理。",
+      "after": "风控上下文用于应对刷单行为，并在用户参与抽奖流程中晚于活动准入但先于抽奖执行。\n\n## Rule\n\n抽奖活动可配置风控条件以限制用户参与抽奖的频率。应用服务先执行活动准入检查，再进行风险校验和抽奖；来源未展示风险校验失败时的具体处理。",
+      "cases": [
+        "risk-before-admission"
+      ],
+      "rationale": "校验顺序对调后，先准入再风控的命题应由假变真。"
+    },
+    {
+      "id": "m-counting-order",
+      "kind": "text",
+      "status": "approved",
+      "target": "attempt-counting",
+      "before": "计数上下文是为抽奖、风控和活动准入提供访问接口的通用上下文；抽奖领域服务在读取抽奖活动聚合后增加抽奖计数。\n\n## Rule\n\n每次进入抽奖领域服务时，先获取对应抽奖活动的聚合，再增加本次抽奖的尝试计数，随后选择奖池和奖品。计数能力同时服务于抽奖、风控和活动准入中涉及的次数限制。",
+      "after": "计数上下文是为抽奖、风控和活动准入提供访问接口的通用上下文；抽奖领域服务在读取抽奖活动聚合前增加抽奖计数。\n\n## Rule\n\n每次进入抽奖领域服务时，先增加本次抽奖的尝试计数，再获取对应抽奖活动的聚合，随后选择奖池和奖品。计数能力同时服务于抽奖、风控和活动准入中涉及的次数限制。",
+      "cases": [
+        "counting-order"
+      ],
+      "rationale": "聚合与计数的先后对调，counting-order 应由真变假。"
+    },
+    {
+      "id": "m-city-priority",
+      "kind": "text",
+      "status": "approved",
+      "target": "award-selection",
+      "before": "场景携带城市信息时按城市匹配；否则按抽奖得分匹配",
+      "after": "场景携带城市信息时按抽奖得分匹配；否则按城市匹配",
+      "cases": [
+        "city-first"
+      ],
+      "rationale": "城市与得分的匹配优先级对调，city-first 应由真变假。"
+    },
+    {
+      "id": "m-prob-config",
+      "kind": "text",
+      "status": "approved",
+      "target": "award-pool",
+      "before": "各奖项的被抽中概率由运营预先配置",
+      "after": "各奖项的被抽中概率由系统实时计算，替代运营预先配置",
+      "cases": [
+        "probability-configured"
+      ],
+      "rationale": "配置职责改为实时计算，指定题应由假变真。"
+    },
+    {
+      "id": "m-stock-generic",
+      "kind": "text",
+      "status": "approved",
+      "target": "stock-independence",
+      "before": "库存是抽奖平台中管理发放内容数量与核销的业务对象，被划分为独立的库存上下文。库存的行为与奖品本身相对解耦，库存的关注点更多是库存内容的核销；且库存本身具备通用性，可以被奖品之外的内容使用。\n\n奖品的库存量属于奖品自身的配置之一，与被抽中的概率、最多被一个用户抽中的次数等一同维护。",
+      "after": "库存是抽奖平台中管理发放内容数量与核销的业务对象，被划分为独立的库存上下文。库存的行为与奖品本身相对解耦，库存的关注点更多是库存内容的核销；且库存本身不具备跨内容通用性，仅供本奖品使用。\n\n奖品的库存量属于奖品自身的配置之一，与被抽中的概率、最多被一个用户抽中的次数等一同维护。",
+      "cases": [
+        "stock-generic"
+      ],
+      "rationale": "库存通用性被收窄为专用，stock-generic 应由真变假。"
+    },
+    {
+      "id": "m-event-alias",
+      "kind": "text",
+      "status": "approved",
+      "target": "award-issued-event",
+      "before": "抽奖服务选中奖品后调用发奖服务，将选中的奖品发放给用户。本页将原文描述的发奖行为建模为事件类型，展示 Event 如何连接参与者、业务对象与工作流；不代表某次奖品已成功到账的真实记录。\n\n`sendAward` 是发奖方法，`SendResult` 是抽奖结果输出，二者都不是事件名称的别名。发奖调用、发奖响应转换为抽奖响应，以及用户领奖记录作为领奖凭据和存根的说明，见[用户参与抽奖](../workflows/user-participation.md)。原文未定义独立事件消息、投递机制或消费方，也未给出具体发奖时间与凭据值。",
+      "after": "抽奖服务选中奖品后调用发奖服务，将选中的奖品发放给用户。本页将原文描述的发奖行为建模为事件类型，展示 Event 如何连接参与者、业务对象与工作流；不代表某次奖品已成功到账的真实记录。\n\n`sendAward` 是发奖方法，不是事件名称的别名；`SendResult` 是奖品发放事件的名称别名，不是抽奖结果输出。发奖调用、发奖响应转换为抽奖响应，以及用户领奖记录作为领奖凭据和存根的说明，见[用户参与抽奖](../workflows/user-participation.md)。原文未定义独立事件消息、投递机制或消费方，也未给出具体发奖时间与凭据值。",
+      "cases": [
+        "sendresult-not-event"
+      ],
+      "rationale": "SendResult 的身份由输出改为事件别名，指定题应由假变真；同时改写身份说明，避免文本内部矛盾。"
+    }
+  ]
+}

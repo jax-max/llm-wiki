@@ -1,0 +1,98 @@
+{
+  "version": 1,
+  "model": "jev-latest",
+  "knowledge": [
+    {
+      "id": "window",
+      "page": "wiki/domains/shop/rules/window.md",
+      "lines": [
+        8,
+        8
+      ],
+      "anchors": [
+        "普通用户签收7日内可以申请退货，超过7日不支持退货；定制商品另按例外规则处理。",
+        "普通用户签收7日内可以申请退货，超过7日不支持退货；定制商品另按例外规则处理。"
+      ],
+      "critical": true
+    },
+    {
+      "id": "exclusion",
+      "page": "wiki/domains/shop/rules/exclusion.md",
+      "lines": [
+        8,
+        8
+      ],
+      "anchors": [
+        "定制商品不支持退货。",
+        "定制商品不支持退货。"
+      ],
+      "critical": true
+    }
+  ],
+  "cases": [
+    {
+      "id": "within",
+      "kind": "semantic",
+      "status": "approved",
+      "question": "普通用户签收5天，非定制商品，满足其他条件，可以申请退货。",
+      "expected": true,
+      "targets": [
+        "window",
+        "exclusion"
+      ],
+      "context_rules": [],
+      "rationale": "期限页允许7日内退货，例外页排除定制商品；5日且非定制满足两页条件。防止一般允许分支被缩短或错误排除。"
+    },
+    {
+      "id": "late",
+      "kind": "semantic",
+      "status": "approved",
+      "question": "普通用户签收10天，非定制商品，可以申请退货。",
+      "expected": false,
+      "targets": [
+        "window"
+      ],
+      "context_rules": [],
+      "rationale": "期限页明确超过7日不支持退货，10日超过上限。防止把期限当作无约束的建议。"
+    },
+    {
+      "id": "custom",
+      "kind": "semantic",
+      "status": "approved",
+      "question": "普通用户签收5天，定制商品，可以申请退货。",
+      "expected": false,
+      "targets": [
+        "window",
+        "exclusion"
+      ],
+      "context_rules": [],
+      "rationale": "例外页明确排除定制商品；期限页明确让定制商品适用例外。防止7日内的一般规则绕过例外。"
+    }
+  ],
+  "mutations": [
+    {
+      "id": "shorter-window",
+      "kind": "text",
+      "status": "approved",
+      "target": "window",
+      "before": "签收7日内可以申请退货，超过7日不支持退货",
+      "after": "签收3日内可以申请退货，超过3日不支持退货",
+      "cases": [
+        "within"
+      ],
+      "rationale": "5日超过变异后的3日，原题应为假。"
+    },
+    {
+      "id": "allow-custom",
+      "kind": "text",
+      "status": "approved",
+      "target": "exclusion",
+      "before": "不支持",
+      "after": "支持",
+      "cases": [
+        "custom"
+      ],
+      "rationale": "例外被反转，5日内的定制商品应可退货。"
+    }
+  ]
+}

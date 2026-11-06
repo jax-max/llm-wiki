@@ -9,9 +9,7 @@ type Step =
   | { answer: string };
 const rule = "wiki/domains/lottery-platform/rules/activity-admission.md";
 const flow = "wiki/domains/lottery-platform/workflows/user-participation.md";
-const life = "wiki/domains/lottery-platform/state-machines/lottery-activity.md";
 const raw = "raw/meituan-tech/2026-09-18-ddd-in-practice.md";
-const lifecycleRaw = "raw/demo-spec/2026-10-15-lottery-lifecycle.md";
 const read = (path: string): Step => ({
   name: "read_document",
   args: { path },
@@ -197,13 +195,13 @@ for (const api of ["anthropic-messages", "openai-completions"] as const)
       );
       await ask(
         "抽奖活动有哪些状态？",
-        [search("生命周期"), read(life), read(lifecycleRaw)],
-        `生命周期来自教学补充来源，不能当作原技术文章中的业务事实。[教学生命周期](${life})`,
+        [search("生命周期")],
+        "知识库没有记录抽奖活动的生命周期状态。",
       );
       await ask(
         "这个结论的原始依据是什么？",
-        [search("生命周期"), read(life), read(lifecycleRaw)],
-        `上轮结论的原始依据是教学补充文档。[原始依据](${lifecycleRaw})`,
+        [search("生命周期"), read(raw)],
+        `原文未定义抽奖活动的生命周期状态，知识库因此没有状态记录。[原文](${raw})`,
       );
       await ask(
         "活动预算是多少？",
