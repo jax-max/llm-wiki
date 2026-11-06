@@ -64,7 +64,7 @@ as successful live judgments.
 
 Use temporary copies of the fictional fixture. Invoke the Skill's **generation**
 workflow, not merely the generate script. Preserve approved answers; unresolved
-new scenarios belong in `reports/quality.md`.
+new scenarios belong in `wiki-tests/quality.md`.
 
 - **Missing condition:** replace the window prose with `普通用户满足期限要求时可以申请退货。`
   and refresh its anchor. The five-day and ten-day decisions cannot be derived.

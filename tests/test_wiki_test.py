@@ -179,8 +179,8 @@ class KnowledgeTestsTest(unittest.TestCase):
                 operation(self.root)
 
     def test_failure_report_locates_scenario_and_preserves_quality_findings(self):
-        quality = self.root / "wiki-tests/reports/quality.md"
-        quality.parent.mkdir(parents=True)
+        quality = self.root / "wiki-tests/quality.md"
+        quality.parent.mkdir(parents=True, exist_ok=True)
         quality.write_text("Unresolved scenario: custom goods on day five; conflicting Wiki rules.")
         self.rule["facts"]["days"] = 3
         self.save_rule()
@@ -188,7 +188,7 @@ class KnowledgeTestsTest(unittest.TestCase):
         self.assertEqual(wt.run_suite(self.root), 1)
         result = self.report()["cases"][0]
         self.assertEqual(result["locations"], [{"id": "returns", "page": "wiki/domains/shop/returns.md", "lines": [3, 3]}])
-        report = (quality.parent / "latest.md").read_text()
+        report = (self.root / "wiki-tests/reports/latest.md").read_text()
         self.assertIn(self.case["question"], report)
         self.assertIn("Expected: True. Actual: False.", report)
         self.assertIn("wiki/domains/shop/returns.md:3-3", report)

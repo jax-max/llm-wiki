@@ -291,7 +291,7 @@ conflicts instead of approving an invented answer.
 
 ```sh
 python3 skills/wiki-test/scripts/wiki_test.py generate /path/to/your-project
-# Agent reads Wiki only and completes cases, cores.json and reports/quality.md.
+# Agent reads Wiki only and completes cases, cores.json and wiki-tests/quality.md.
 python3 skills/wiki-test/scripts/wiki_test.py check /path/to/your-project
 python3 skills/wiki-test/scripts/wiki_test.py run /path/to/your-project
 ```
@@ -303,7 +303,7 @@ approved cases and mutations, applying mutations only in memory. Existing expect
 answers never change automatically with the prose.
 
 Version `wiki-tests/suite.json`, `cores.json` and `inventory.json`.
-`reports/quality.md` records reviewed scope and unresolved core scenarios;
+`wiki-tests/quality.md` records reviewed scope and unresolved core scenarios;
 `latest.md` prioritizes failed scenarios and Wiki locations, with statistics as
 auxiliary inventory only. A passing run does not resolve quality findings or
 establish sentence/page completeness. Reports may be ignored or retained as review

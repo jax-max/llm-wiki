@@ -368,7 +368,7 @@ def generate(root):
     write_json(root / "wiki-tests/reports/authoring.json", {
         "pages_to_review": pages, "knowledge_without_semantic_cases": sorted(set(rules) - semantic_targets),
         "changed_knowledge": changes["changed"], "removed_knowledge": changes["removed"], "missing_bindings": missing,
-        "instructions": "Agent: use Wiki content only; never read Raw or follow source links. Identify core logic and author single-conclusion scenarios with Wiki-grounded rationale and a distinct failure mode. Preserve confirmed answers. Write cores.json and reports/quality.md with located gaps, ambiguities and conflicts; do not invent expected answers for unresolved scenarios. This queue is not a completed test set."})
+        "instructions": "Agent: use Wiki content only; never read Raw or follow source links. Identify core logic and author single-conclusion scenarios with Wiki-grounded rationale and a distinct failure mode. Preserve confirmed answers. Write cores.json and wiki-tests/quality.md with located gaps, ambiguities and conflicts; do not invent expected answers for unresolved scenarios. This queue is not a completed test set."})
     print(json.dumps(dict(changes, cases=len(suite["cases"]), pages_without_rules=pages), ensure_ascii=False))
 
 

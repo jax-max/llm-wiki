@@ -48,7 +48,7 @@ Read [the test format](references/test-format.md). Require `wiki/schema.md`.
 4. Review the complete relevant Wiki context before approving. Conditions belong
    in the scenario, but do not put the tested rule or its answer into the question.
    An exception qualifies a general rule; it is not automatically a conflict.
-   If a core scenario remains unresolved, put it in `reports/quality.md`, not in
+   If a core scenario remains unresolved, put it in `wiki-tests/quality.md`, not in
    approved cases. A finding must identify a scenario, Wiki location(s), the gap,
    ambiguity or conflicting conclusions, and its decision impact. Do not flag
    arbitrary missing detail unrelated to core logic. Distinguish an explicitly
@@ -64,7 +64,7 @@ Read [the test format](references/test-format.md). Require `wiki/schema.md`.
    findings. Preserve confirmed answers across edits. Change an answer only when
    an explicit Wiki rule change justifies it, recording that rationale; never
    update answers merely to make the suite pass.
-7. Run `check`, regenerate the inventory, and finish `reports/quality.md` with the
+7. Run `check`, regenerate the inventory, and finish `wiki-tests/quality.md` with the
    reviewed scope and current findings, including "none found" if appropriate.
    Report authored cases, unresolved scenarios and remaining drafts. A script-only
    queue or passing baseline is not a completed quality review.

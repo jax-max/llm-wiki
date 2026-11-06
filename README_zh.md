@@ -264,7 +264,7 @@ python3 -m unittest discover -s tests -v
 
 ```sh
 python3 skills/wiki-test/scripts/wiki_test.py generate /path/to/your-project
-# Agent 只阅读 Wiki，完成场景出题、cores.json 和 reports/quality.md。
+# Agent 只阅读 Wiki，完成场景出题、cores.json 和 wiki-tests/quality.md。
 python3 skills/wiki-test/scripts/wiki_test.py check /path/to/your-project
 python3 skills/wiki-test/scripts/wiki_test.py run /path/to/your-project
 ```
@@ -274,7 +274,7 @@ python3 skills/wiki-test/scripts/wiki_test.py run /path/to/your-project
 默认执行全部正式用例及变异，变异仅作用于内存副本。已有预期答案不会随正文自动更新。
 
 版本控制纳入 `wiki-tests/suite.json`、`cores.json` 和 `inventory.json`。
-`reports/quality.md` 记录审查范围及未解决的核心场景问题；`latest.md` 优先展示失败场景与 Wiki 位置，
+`wiki-tests/quality.md` 记录审查范围及未解决的核心场景问题；`latest.md` 优先展示失败场景与 Wiki 位置，
 统计数字仅作辅助。测试通过不表示质量问题已解决，也不承诺页面或句子覆盖完整。
 报告可忽略或保留为审查产物。详见 [Skill](skills/wiki-test/SKILL.md)、
 [格式](skills/wiki-test/references/test-format.md)与[验收步骤](skills/wiki-test/references/acceptance.md)。

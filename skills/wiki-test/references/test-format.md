@@ -181,7 +181,7 @@ optionally `unresolved` (finding IDs from the quality report). Group by behavior
 not by page. This mapping is review material, not a coverage percentage or a
 separate executable rule engine.
 
-Write `reports/quality.md` after authoring/review. Include the reviewed Wiki scope
+Write `wiki-tests/quality.md` after authoring/review. Include the reviewed Wiki scope
 and one entry per unresolved core scenario: stable finding ID, scenario, Wiki
 path and line range(s), missing condition/ambiguity/conflicting statements,
 decision impact, and what the Wiki must clarify. Distinguish documented unknowns
