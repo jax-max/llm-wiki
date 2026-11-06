@@ -62,10 +62,16 @@ export function createApp(
       hosts.add(`127.0.0.1:${c.webPort}`);
       hosts.add(`localhost:${c.webPort}`);
     }
+    // 从外部页面链接跳入首页仍带 cross-site；允许首页文档导航，API 继续校验来源。
+    const isHomeNavigation =
+      req.method === "GET" &&
+      req.path === "/" &&
+      req.headers["sec-fetch-mode"] === "navigate" &&
+      req.headers["sec-fetch-dest"] === "document";
     if (
       !hosts.has(req.headers.host || "") ||
       (req.headers.origin && !origins.has(req.headers.origin)) ||
-      req.headers["sec-fetch-site"] === "cross-site"
+      (req.headers["sec-fetch-site"] === "cross-site" && !isHomeNavigation)
     )
       return res.status(403).json({ error: "拒绝非本地来源请求" });
     res.setHeader("X-Content-Type-Options", "nosniff");
@@ -155,6 +161,13 @@ export function createApp(
     const s = sessions.get(req.params.sessionId);
     s?.controller?.abort(new QueryError("cancelled", "对话已结束"));
     sessions.delete(req.params.sessionId);
+    res.status(204).end();
+  });
+  // 显式中止正在生成的回答；不依赖客户端断开连接来传播取消。
+  app.post("/api/chat/:sessionId/cancel", (req, res) => {
+    const s = sessions.get(req.params.sessionId);
+    if (!s) return res.status(404).json({ error: "对话不存在" });
+    s.controller?.abort(new QueryError("cancelled", "生成已停止"));
     res.status(204).end();
   });
   app.post("/api/chat", async (req, res, next) => {

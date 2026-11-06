@@ -27,7 +27,10 @@ export function fakeFactory(
 ): Factory {
   return async (_c, prompt, tools, history) => {
     assert.match(prompt, /Query the Wiki/);
-    assert.match(prompt, /Updated/);
+    assert.match(
+      prompt,
+      /Every turn must read wiki\/schema\.md and wiki\/index\.md/,
+    );
     assert.deepEqual(tools.map((t) => t.name).sort(), [
       "read_document",
       "search_wiki",

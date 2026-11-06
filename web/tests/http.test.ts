@@ -146,6 +146,40 @@ test("concurrent submission conflicts; disconnect cancels and retry restores com
     await s.stop();
   }
 });
+test("explicit cancel aborts generation, ends the stream and keeps the session", async () => {
+  const s = await serve({ wait: true });
+  try {
+    const response = await s.request("/api/chat", post());
+    const reader = response.body!.getReader();
+    const first = new TextDecoder().decode((await reader.read()).value);
+    const id = JSON.parse(first.match(/data: (.+)/)![1]).sessionId;
+    assert.equal(
+      (await s.request("/api/chat/missing/cancel", { method: "POST" })).status,
+      404,
+    );
+    assert.equal(
+      (await s.request(`/api/chat/${id}/cancel`, { method: "POST" })).status,
+      204,
+    );
+    let tail = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      tail += new TextDecoder().decode(value);
+    }
+    assert.match(tail, /cancelled/);
+    // cancel 只中止本轮生成：会话保留、controller 已清理、可继续追问。
+    assert.equal(s.sessions.has(id), true);
+    assert.equal(s.sessions.get(id)?.controller, undefined);
+    assert.deepEqual(s.sessions.get(id)?.history, []);
+    const again = await s.request("/api/chat", post(id));
+    assert.equal(again.status, 200);
+    await s.request(`/api/chat/${id}`, { method: "DELETE" });
+    await again.text();
+  } finally {
+    await s.stop();
+  }
+});
 test("expired session, failed retry, stream error and parser truncation", async () => {
   const s = await serve({ error: "provider unavailable" });
   try {

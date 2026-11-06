@@ -64,6 +64,7 @@ const en: Copy = {
     disclaimer: "Answers may be wrong — check the cited sources",
     send: "Send ↑",
     stop: "■ Stop",
+    stopFailed: "Failed to stop. Please try again.",
   },
   source: {
     panelLabel: "Source reader",

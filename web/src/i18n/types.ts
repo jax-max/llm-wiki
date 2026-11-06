@@ -52,6 +52,7 @@ export interface Copy {
     disclaimer: string;
     send: string;
     stop: string;
+    stopFailed: string;
   };
   source: {
     panelLabel: string;

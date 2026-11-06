@@ -521,7 +521,25 @@ function Workspace({ onSwitch }: { onSwitch: () => void }) {
                   <button
                     type="button"
                     className="primary"
-                    onClick={() => controller.current?.abort()}
+                    onClick={async () => {
+                      // 先通知服务端中止生成，再中断本地流；无会话时直接本地中断。
+                      if (!session.current) {
+                        controller.current?.abort();
+                        return;
+                      }
+                      try {
+                        const response = await fetch(
+                          "/api/chat/" +
+                            encodeURIComponent(session.current) +
+                            "/cancel",
+                          { method: "POST" },
+                        );
+                        if (response.ok) controller.current?.abort();
+                        else setProgress(t.composer.stopFailed);
+                      } catch {
+                        setProgress(t.composer.stopFailed);
+                      }
+                    }}
                   >
                     {t.composer.stop}
                   </button>

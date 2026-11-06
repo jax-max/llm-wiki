@@ -64,6 +64,7 @@ const zh: Copy = {
     disclaimer: "答案可能有误，请核对引用来源",
     send: "发送 ↑",
     stop: "■ 停止生成",
+    stopFailed: "停止失败，请重试",
   },
   source: {
     panelLabel: "来源阅读",
