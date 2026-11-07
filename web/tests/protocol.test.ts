@@ -165,7 +165,7 @@ for (const api of ["anthropic-messages", "openai-completions"] as const)
         { answer },
       ];
       let text = "";
-      history = await runQuery(
+      const result = await runQuery(
         c,
         question,
         history,
@@ -176,6 +176,8 @@ for (const api of ["anthropic-messages", "openai-completions"] as const)
             traces.push((data as { tool: string }).tool);
         },
       );
+      history = result.history;
+      assert.equal(typeof result.grounded, "boolean");
       assert.equal(text, answer);
       assert.equal(steps.length, 0);
       if (failure) throw failure;

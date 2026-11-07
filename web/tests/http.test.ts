@@ -102,12 +102,15 @@ test("HTTP config, document, host and origin boundaries, ordered SSE and followu
     assert.equal((await s.request("/api/chat", post("missing"))).status, 404);
     const events: string[] = [];
     let id = "";
+    let grounded: unknown;
     await readSSE(await s.request("/api/chat", post()), (e, d) => {
       events.push(e);
       if (e === "session") id = d.sessionId;
+      if (e === "done") grounded = d.grounded;
     });
     assert.equal(events[0], "session");
     assert.equal(events.at(-1), "done");
+    assert.equal(grounded, true);
     await readSSE(await s.request("/api/chat", post(id)), () => {});
     assert.equal(s.seen[1].length, 2);
     assert.equal(

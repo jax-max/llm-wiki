@@ -25,6 +25,7 @@ type Turn = {
   answer: string;
   status: "running" | "done" | "error" | "stopped";
   error?: string;
+  grounded?: boolean;
 };
 export default function App() {
   const [generation, setGeneration] = useState(0);
@@ -176,7 +177,11 @@ function Workspace({ onSwitch }: { onSwitch: () => void }) {
           setProgress(t.progress.streaming);
           update((turn) => ({ ...turn, answer: turn.answer + data.text }));
         } else if (event === "done")
-          update((turn) => ({ ...turn, status: "done" }));
+          update((turn) => ({
+            ...turn,
+            status: "done",
+            grounded: data.grounded !== false,
+          }));
         else if (event === "error")
           update((turn) => ({
             ...turn,
@@ -446,14 +451,20 @@ function Workspace({ onSwitch }: { onSwitch: () => void }) {
                 <section className="turn" key={i}>
                   <div className="question">{turn.question}</div>
                   <div className="answer-label">
-                    WIKI{" "}
-                    <span>
-                      {turn.status === "running"
-                        ? t.turn.running
-                        : turn.status === "done"
-                          ? t.turn.done
-                          : t.turn.incomplete}
-                    </span>
+                    {turn.status === "done" && turn.grounded === false ? (
+                      <span className="general">{t.turn.general}</span>
+                    ) : (
+                      <>
+                        WIKI{" "}
+                        <span>
+                          {turn.status === "running"
+                            ? t.turn.running
+                            : turn.status === "done"
+                              ? t.turn.done
+                              : t.turn.incomplete}
+                        </span>
+                      </>
+                    )}
                   </div>
                   <Markdown
                     text={turn.answer}

@@ -38,6 +38,7 @@ const zh: Copy = {
   turn: {
     running: "查询中",
     done: "基于知识库",
+    general: "通识回答 · 未引用知识库",
     incomplete: "本轮未完成",
     retry: "重试本轮",
   },

@@ -15,7 +15,7 @@ for (const question of [
 ]) {
   const traces: { tool: string; path?: string }[] = [];
   let answer = "";
-  history = await runQuery(
+  const result = await runQuery(
     c,
     question,
     history,
@@ -26,6 +26,7 @@ for (const question of [
         traces.push(data as { tool: string; path?: string });
     },
   );
+  history = result.history;
   assert.ok(answer.trim(), "No answer");
   assert.ok(traces.some((t) => t.tool === "search_wiki"));
   if (question.includes("哪些流程"))

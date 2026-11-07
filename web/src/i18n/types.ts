@@ -28,7 +28,13 @@ export interface Copy {
     lead: string;
     suggestions: string[];
   };
-  turn: { running: string; done: string; incomplete: string; retry: string };
+  turn: {
+    running: string;
+    done: string;
+    general: string;
+    incomplete: string;
+    retry: string;
+  };
   progress: {
     search: string;
     readingTitle: (title: string) => string;

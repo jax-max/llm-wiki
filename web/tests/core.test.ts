@@ -247,7 +247,7 @@ test("actual Pi runtime exposes only custom tools without external context", asy
     }
   }
 });
-test("query method, event order, completed history and context error", async () => {
+test("query grounding flag, event order, completed history and context error", async () => {
   const events: string[] = [];
   const progressEvents: {
     tool?: string;
@@ -268,8 +268,9 @@ test("query method, event order, completed history and context error", async () 
       },
       fakeFactory({}, seen),
     );
-  const history = await run([], "参与条件？");
-  await run(history, "原始依据？");
+  const first = await run([], "参与条件？");
+  assert.equal(first.grounded, true);
+  await run(first.history, "原始依据？");
   assert.equal(seen[1].length, 2);
   assert.equal(events[0], "progress");
   assert.ok(events.includes("delta"));
@@ -286,17 +287,16 @@ test("query method, event order, completed history and context error", async () 
       .filter((e) => e.path === "wiki/schema.md" || e.path === "wiki/index.md")
       .every((e) => e.documentTitle === undefined),
   );
-  await assert.rejects(
-    runQuery(
-      config,
-      "问",
-      [],
-      new AbortController(),
-      () => {},
-      fakeFactory({ noTools: true }),
-    ),
-    /未完成 wiki-query.*缺失：schema、index、search.*已读：无/,
+  const general = await runQuery(
+    config,
+    "问",
+    [],
+    new AbortController(),
+    () => {},
+    fakeFactory({ noTools: true }),
   );
+  assert.equal(general.grounded, false);
+  assert.ok(general.history.some((m) => m.role === "assistant"));
   await assert.rejects(
     runQuery(
       config,

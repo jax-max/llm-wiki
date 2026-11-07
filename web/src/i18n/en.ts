@@ -38,6 +38,7 @@ const en: Copy = {
   turn: {
     running: "Searching",
     done: "Based on the wiki",
+    general: "General knowledge · not wiki-based",
     incomplete: "Turn incomplete",
     retry: "Retry turn",
   },

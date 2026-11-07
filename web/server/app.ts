@@ -249,7 +249,7 @@ export function createApp(
     }, 15000);
     emit("session", { sessionId: id });
     try {
-      s.history = await runQuery(
+      const result = await runQuery(
         { ...c },
         req.body.message,
         s.history,
@@ -257,7 +257,10 @@ export function createApp(
         emit,
         factory,
       );
-      emit("done", {});
+      s.history = result.history;
+      emit("done", { grounded: result.grounded });
+      if (!result.grounded)
+        console.info(JSON.stringify({ requestId, unverified: true }));
     } catch (error) {
       const e =
         error instanceof QueryError

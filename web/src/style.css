@@ -413,6 +413,11 @@ main {
   letter-spacing: 0;
   margin-left: 10px;
 }
+.answer-label .general {
+  font-weight: 400;
+  color: #929b93;
+  letter-spacing: 0;
+}
 .markdown {
   font-size: 14px;
   line-height: 1.9;
