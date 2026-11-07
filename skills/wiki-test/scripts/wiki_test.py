@@ -331,6 +331,34 @@ def load_suite(root, rules):
     return suite
 
 
+def check_cores(root, suite):
+    path = local_path(root, "wiki-tests/cores.json", "wiki-tests")
+    approved = {c["id"] for c in suite["cases"] if c["status"] == "approved"}
+    require(path.exists() or not approved, "approved cases require cores.json")
+    if not path.exists():
+        return
+    data = read_json(path)
+    require(isinstance(data, dict) and isinstance(data.get("cores"), list), "cores must be an array")
+    known = {c["id"] for c in suite["cases"]}
+    mapped = set()
+    for core in data["cores"]:
+        require(isinstance(core, dict), "core must be an object")
+        for field in ("core", "question"):
+            require(isinstance(core.get(field), str) and core[field].strip(), "missing core " + field)
+        require(core.get("mode") in {"qa", "application"}, "invalid core mode")
+        if core["mode"] == "application":
+            require(isinstance(core.get("task"), str) and core["task"].strip(), "application core requires task")
+        for field in ("cases", "unresolved"):
+            values = core.get(field, [] if field == "unresolved" else None)
+            require(isinstance(values, list) and all(isinstance(v, str) and v.strip() for v in values),
+                    "invalid core " + field)
+            require(len(values) == len(set(values)), "duplicate core " + field)
+        require(core["cases"] or core.get("unresolved"), "core requires cases or unresolved findings")
+        require(set(core["cases"]) <= known, "core references unknown case")
+        mapped.update(core["cases"])
+    require(approved <= mapped, "approved cases missing from cores: " + ", ".join(sorted(approved - mapped)))
+
+
 def relocate_lines(entry, rows):
     """Repair a drifted line binding when both anchors still match uniquely."""
     lines, anchors = entry.get("lines"), entry.get("anchors")
@@ -357,6 +385,24 @@ def scan_version(root):
         fingerprint.update(str(page.relative_to(root)).encode("utf-8") + b"\0")
         fingerprint.update(page.read_bytes())
     return fingerprint.hexdigest()
+
+
+def review_done(root, item_ids, version):
+    require(bool(item_ids) and bool(version), "review-done requires --item and --scan-version")
+    path = local_path(root, "wiki-tests/reports/authoring.json", "wiki-tests")
+    report = read_json(path)
+    require(version == report["scan_version"] == scan_version(root),
+            "review scan is stale; generate and review current changes first")
+    queue = report["review_queue"]
+    selected = set(item_ids)
+    pending = {item["id"] for item in queue["pending"]}
+    require(selected <= pending, "unknown or non-pending review items: " + ", ".join(sorted(selected - pending)))
+    for item in queue["pending"]:
+        if item["id"] in selected:
+            queue["done"].append(dict(item, status="done", reviewed_scan_version=version))
+    queue["pending"] = [item for item in queue["pending"] if item["id"] not in selected]
+    write_json_if_changed(path, report)
+    print("Marked {} review item(s) done.".format(len(selected)))
 
 
 def generate(root):
@@ -519,6 +565,7 @@ def run_suite(root, sender=None, verify_tests=False, case_ids=None):
     suite = load_suite(root, rules)
     approved = [c for c in suite["cases"] if c["status"] == "approved"]
     require(bool(approved), "no approved cases; generate and review the test set first")
+    check_cores(root, suite)
     if case_ids is not None:
         unknown = sorted(set(case_ids) - {c["id"] for c in approved})
         require(not unknown, "unknown or unapproved case IDs: " + ", ".join(unknown))
@@ -573,6 +620,10 @@ def run_suite(root, sender=None, verify_tests=False, case_ids=None):
                 changed[rid]["facts"][key] = mutation["after"]
             checks = []
             for cid in targeted:
+                if not baseline[cid]:
+                    checks.append({"case": cid, "baseline_passed": False, "detected": False,
+                                   "skipped": True, "reason": "baseline failed"})
+                    continue
                 case = by_id[cid]
                 actual, details = execute_case(case, changed, model, sender)
                 checks.append({"case": cid, "actual": actual, "baseline_passed": baseline[cid],
@@ -697,21 +748,29 @@ def run_suite(root, sender=None, verify_tests=False, case_ids=None):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=["generate", "check", "run"])
+    parser.add_argument("action", choices=["generate", "check", "run", "review-done"])
     parser.add_argument("root", type=Path)
     parser.add_argument("--verify-tests", action="store_true",
                         help="execute approved mutations in addition to the baseline")
     parser.add_argument("--case", action="append", dest="case_ids", metavar="CASE_ID",
                         help="restrict verification to this case ID; repeatable; requires --verify-tests")
+    parser.add_argument("--item", action="append", help="review queue item ID; repeatable for review-done")
+    parser.add_argument("--scan-version", help="reviewed scan version for review-done")
     args = parser.parse_args(argv)
     root = args.root.resolve()
     try:
+        require(args.action == "review-done" or not (args.item or args.scan_version),
+                "--item and --scan-version require review-done")
+        if args.action == "review-done":
+            require(not args.verify_tests and not args.case_ids, "review-done does not execute tests")
+            review_done(root, args.item, args.scan_version)
+            return 0
         if args.action == "generate":
             generate(root)
             return 0
         if args.action == "check":
             rules, _ = load_rules(root)
-            load_suite(root, rules)
+            check_cores(root, load_suite(root, rules))
             print("0 test asset issue(s)")
             return 0
         require(not (args.case_ids and not args.verify_tests), "--case requires --verify-tests")

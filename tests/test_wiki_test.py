@@ -42,6 +42,11 @@ class KnowledgeTestsTest(unittest.TestCase):
 
     def save_suite(self):
         wt.write_json(self.root / "wiki-tests/suite.json", self.suite)
+        path = self.root / "wiki-tests/cores.json"
+        if not path.exists() or all(c.get("core") == "Return policy" for c in wt.read_json(path)["cores"]):
+            wt.write_json(path, {"cores": [
+                {"core": "Return policy", "mode": "qa", "question": "When are returns allowed?",
+                 "cases": [c["id"] for c in self.suite["cases"]]}] if self.suite["cases"] else []})
 
     def report(self):
         return wt.read_json(self.root / "wiki-tests/reports/latest.json")
@@ -56,6 +61,72 @@ class KnowledgeTestsTest(unittest.TestCase):
         self.assertEqual(report["bindings"], {"returns": ["day-five"]})
         self.assertEqual(self.page.read_bytes(), before)
         self.assertEqual((self.root / "wiki-tests/suite.json").read_bytes(), suite_before)
+
+    def test_core_validation_rejects_invalid_mapping_before_model_calls(self):
+        self.semantic_fixture()
+        path = self.root / "wiki-tests/cores.json"
+        valid = wt.read_json(path)
+        invalid = []
+        for change in ({"cases": ["missing"]}, {"cases": [], "unresolved": ["Q1"]},
+                       {"mode": "application"}, {"question": ""}, {"cases": ["day-five", "day-five"]}):
+            data = copy.deepcopy(valid)
+            data["cores"][0].update(change)
+            invalid.append(data)
+        for data in invalid:
+            with self.subTest(data=data):
+                wt.write_json(path, data)
+                with patch.object(wt, "jev_request") as sender:
+                    with self.assertRaises(ValueError):
+                        wt.run_suite(self.root, sender=sender)
+                    sender.assert_not_called()
+        path.unlink()
+        with self.assertRaisesRegex(ValueError, "require cores.json"):
+            wt.run_suite(self.root, sender=lambda _: self.fail("unexpected call"))
+
+    def test_core_validation_allows_application_and_unresolved_cores(self):
+        wt.write_json(self.root / "wiki-tests/cores.json", {"cores": [
+            {"core": "Returns", "mode": "application", "task": "User requested return implementation",
+             "question": "Can a return proceed?", "cases": ["day-five"]},
+            {"core": "Failure response", "mode": "qa", "question": "What is returned?",
+             "cases": [], "unresolved": ["Q1"]}]})
+        self.assertEqual(wt.main(["check", str(self.root)]), 0)
+
+    def test_review_done_validates_version_and_updates_only_selected_items(self):
+        wt.generate(self.root)
+        path = self.root / "wiki-tests/reports/authoring.json"
+        report = wt.read_json(path)
+        version = report["scan_version"]
+        item_id = report["review_queue"]["pending"][0]["id"]
+        before = path.read_bytes()
+        for ids, scan in (([item_id], "stale"), ([item_id, "missing"], version)):
+            with self.assertRaises(ValueError):
+                wt.review_done(self.root, ids, scan)
+            self.assertEqual(path.read_bytes(), before)
+        self.assertEqual(wt.main(["review-done", str(self.root), "--item", item_id,
+                                  "--scan-version", version]), 0)
+        queue = wt.read_json(path)["review_queue"]
+        self.assertEqual(len(queue["pending"]), len(report["review_queue"]["pending"]) - 1)
+        self.assertEqual(queue["done"][-1]["reviewed_scan_version"], version)
+        wt.generate(self.root)
+        self.assertIn(item_id, [i["id"] for i in wt.read_json(path)["review_queue"]["done"]])
+        self.page.write_text(self.page.read_text() + "\nNew condition\n")
+        before = path.read_bytes()
+        with self.assertRaisesRegex(ValueError, "stale"):
+            wt.review_done(self.root, [item_id], version)
+        self.assertEqual(path.read_bytes(), before)
+
+    def test_failed_semantic_baseline_skips_useless_mutation_calls(self):
+        self.semantic_fixture()
+        calls = []
+        def sender(payload):
+            calls.append(payload)
+            return {"model": "stub", "answers": {"judgment": {"noul": 0.1}}}
+        self.assertEqual(wt.run_suite(self.root, sender=sender, verify_tests=True), 1)
+        self.assertEqual(len(calls), 1)
+        mutation = self.report()["mutations"][0]
+        self.assertFalse(mutation["passed"])
+        self.assertFalse(mutation["eligible"])
+        self.assertEqual(mutation["checks"][0]["reason"], "baseline failed")
 
     def test_current_wiki_change_fails_without_using_old_expected_answers(self):
         self.rule["facts"]["days"] = 3

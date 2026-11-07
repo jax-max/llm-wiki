@@ -110,8 +110,10 @@ reference approved cases. Candidate generation flips booleans, increments number
 or removes the last array member; review their relevance before approval.
 
 At least one designated case with a passing baseline must flip for a mutation
-check to pass. Individual pair results are also retained. A baseline failure is
-never a detection. Mutations only execute under `--verify-tests`: the default
+check to pass. Individual pair results are also retained. If a case's baseline
+failed, its mutation judgment is not called; the pair records `skipped: true`,
+`reason: "baseline failed"` and no actual answer. It is never a detection.
+Mutations only execute under `--verify-tests`: the default
 `run` is a baseline regression that stale mutation text cannot fail, while a
 verification run reports stale preconditions as failed and excludes them from the
 detection-rate denominator. A zero denominator is N/A, not 100%. Rule coverage
@@ -254,7 +256,8 @@ records the scan's added/changed/removed knowledge, pages and the affected
 cases/cores/mutations (both `targets` and `context_rules` count as dependencies);
 `authoring.json` records the `scan_version`, the reviewed Wiki scope and the
 persistent review queue (`pending`/`done`/`auto_cleared`). Reruns never drop
-unfinished items; the agent marks items `done` with the current `scan_version`,
+unfinished items; after review, the agent runs `review-done <root> --item <queue-id>
+--scan-version <reviewed-scan-version>` (repeat `--item` to select more items),
 and changed content returns as a new pending item, so an old completion cannot
 pose as current. Wording changes outside a binding still queue the page for
 review instead of being assumed equivalent. The Skill must finish semantic
@@ -262,6 +265,15 @@ authoring and Wiki-only review and its quality findings before reporting
 generation complete. This division deliberately keeps bookkeeping in scripts and
 interpretation in the Agent.
 
+
+`check` and `run` validate core mappings before any model calls: approved cases
+must be mapped, referenced case IDs must exist, each core needs a mode and nonempty
+question/core text, and application cores need a nonempty task string. A core with
+no cases needs unresolved finding IDs. Finding contents remain Agent-reviewed.
+
+`review-done` rejects unknown/non-pending items and requires the supplied version
+to match both the saved scan and current Wiki. It updates only selected queue items;
+it does not perform semantic review. Use it after finishing that review.
 
 ## Integrity and incomplete runs
 

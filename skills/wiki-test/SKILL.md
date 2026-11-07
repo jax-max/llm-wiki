@@ -70,8 +70,10 @@ boundaries without inventing answers or treating them as failed tests.
    pending item, and wording changes outside a binding still queue that page for review.
    It creates local snapshot drafts; it does not author semantic tests or certify Wiki
    quality. Work only the pending items and their dependencies; do not rewrite
-   unrelated cases, cores or findings. After semantic review, mark the item `done`
-   with the current `scan_version` — a passing run never marks review done.
+   unrelated cases, cores or findings. After semantic review, use
+   `python3 <skill-dir>/scripts/wiki_test.py review-done <project-root> --item <queue-id> --scan-version <reviewed-scan-version>`
+   (`--item` is repeatable). The command rejects stale Wiki scans and non-pending IDs;
+   it only records your completed review. A passing run never marks review done.
 2. Read current Wiki pages and relevant Wiki dependencies. Derive candidate cores
    using the selected reasoning path above; do not start by enumerating questions.
    Bind relevant text through `suite.json.knowledge`; ordinary prose stays prose.
@@ -157,7 +159,11 @@ request. In verification runs, stale mutations fail and are excluded from the
 detection-rate denominator; zero denominator is N/A. Starting a run marks the
 latest report incomplete so old success cannot masquerade as a current result.
 Exit 0: passed; 1: case/mutation failed; 2: could not complete. `check` validates
-all asset structure offline and makes no model calls.
+suite structure and core mappings offline and makes no model calls. Both `check`
+and `run` require approved cases to belong to a core, valid case references,
+nonempty core questions, and a task for application cores. Fix these local errors
+before spending model calls. Verification skips mutation judgments for cases whose
+baseline failed, recording the reason; these cannot count as detections.
 
 Version suite, core mapping and inventory. Reports may be ignored or retained as
 review/CI artifacts. Keep semantic bindings and deterministic fact references
