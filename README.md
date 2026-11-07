@@ -117,7 +117,7 @@ guard, while a process that names no entity states is a Workflow even when its
 order is fixed.
 
 Every typed page declares `Type`, `Raw` links, and the `Updated` compile date
-— all three required. `Domain` is derived from its path; `Aliases` and
+— all three required. `Aliases` and
 `Sources` are optional. `Type` is the sole structured classification.
 Load-bearing facts remain traceable to immutable files under `raw/`.
 

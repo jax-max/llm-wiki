@@ -108,7 +108,7 @@ project/                       # 一个边界知识域
 状态；凡不落到实体状态上的流程，即使步骤顺序固定，也是 Workflow。
 
 每个类型化页面声明 `Type`、`Raw` 原文链接与 `Updated` 编译日期，三者必填。
-`Domain` 由路径推导；`Aliases`、`Sources` 可选。`Type` 是唯一的结构化分类。
+`Aliases`、`Sources` 可选。`Type` 是唯一的结构化分类。
 承重事实始终可追溯到 `raw/` 下的不可变文件。
 
 生命周期：`wiki-init` 创建 wiki，`wiki-ingest` 编译来源，`wiki-query` 回答，

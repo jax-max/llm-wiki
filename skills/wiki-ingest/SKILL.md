@@ -27,8 +27,7 @@ schema and the domain overview (`wiki/overview.md`) before writing.
    - **Event**: a business-significant domain occurrence. Prefer event types
      such as a participation, issuance, or approval; add a concrete instance
      when the source gives its specific time, participants, or context.
-4. This project is one domain: stamp every page `Domain: <domain>` matching
-   `wiki/overview.md`. Reuse an existing page when identity
+4. Reuse an existing page when identity
    matches; do not duplicate an entity. Put an entity's definition
    and boundary in its `Overview`; do not create pages merely to define a noun.
    Apply the modeling economy criteria below

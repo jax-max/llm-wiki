@@ -28,7 +28,7 @@ not recompiled after its evidence changed and is reported.
 Auto-fix only safe path repairs: an index entry or relation link with exactly
 one unambiguous existing target. Update the index after such a repair.
 
-Never auto-fix factual evidence, Type/Domain classification, aliases,
+Never auto-fix factual evidence, Type classification, aliases,
 duplicate entities, conflicting claims, or relation semantics. Report them for
 the user. Treat evidence-check fidelity suspects as leads requiring contextual
 judgment, not automatic errors.

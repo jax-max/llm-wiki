@@ -16,14 +16,14 @@ def run(script, root, *args):
 
 
 def page(title, kind, body="", relations=""):
-    return (f"# {title}\n\n> Type: {kind}\n> Domain: science\n"
+    return (f"# {title}\n\n> Type: {kind}\n"
             "> Aliases: None\n> Sources: Example\n> Raw: [x](../../raw/x.md)\n> Updated: 2026-01-01\n"
             + (f"\n{body.strip()}\n" if body else "")
             + (f"\n## Relations\n\n{relations}" if relations else ""))
 
 
 def minimal_page(title, kind, body=""):
-    return (f"# {title}\n\n> Type: {kind}\n> Domain: science\n> Raw: [x](../../raw/x.md)\n> Updated: 2026-01-01\n"
+    return (f"# {title}\n\n> Type: {kind}\n> Raw: [x](../../raw/x.md)\n> Updated: 2026-01-01\n"
             + (f"\n{body.strip()}\n" if body else ""))
 
 
@@ -113,7 +113,7 @@ class SchemaLintTest(unittest.TestCase):
         self.assertEqual(run(INIT, self.root).returncode, 0)
         # The project directory name is not the domain name: pin the overview.
         (self.root / "wiki/overview.md").write_text(
-            "# science\n\n> Domain: science\n", encoding="utf-8"
+            "# science\n", encoding="utf-8"
         )
         self.domain = self.root / "wiki"
         for name in ("entities", "workflows", "rules", "state-machines", "events"):
@@ -165,14 +165,6 @@ class SchemaLintTest(unittest.TestCase):
         self.index("entities/widget.md")
         result = run(SCHEMA, self.root, "--strict")
         self.assertEqual(result.returncode, 0, result.stdout)
-
-    def test_domain_must_match_overview(self):
-        content = minimal_page("Widget", "Entity", "## Overview\n\nA business object.").replace("> Raw:", "> Domain: other\n> Raw:")
-        self.write("entities", "widget.md", content)
-        self.index("entities/widget.md")
-        result = run(SCHEMA, self.root, "--strict")
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("Domain other does not match overview domain science", result.stdout)
 
     def test_rejects_missing_raw(self):
         self.write("entities", "widget.md", "# Widget\n\n> Type: Entity\n> Updated: 2026-01-01\n\n## Overview\n\nA business object.\n")

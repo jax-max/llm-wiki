@@ -116,7 +116,7 @@ def content_link_errors(page: Path, text: str, wiki: Path) -> list[str]:
             continue
         if in_relations and line.startswith("## "):
             in_relations = False
-        if in_relations or re.match(r"^>\s*(?:Type|Domain|Aliases|Sources?|Raw|Collected|Published|Updated):", line):
+        if in_relations or re.match(r"^>\s*(?:Type|Aliases|Sources?|Raw|Collected|Published|Updated):", line):
             continue
         for target in LINK_RE.findall(line):
             path = target.split("#", 1)[0]
@@ -208,21 +208,6 @@ def check_page(page: Path, root: Path, schema: Schema) -> list[str]:
 def content_pages(wiki: Path) -> list[Path]:
     system = {"schema.md", "index.md", "log.md", "overview.md"}
     return [p for p in sorted(wiki.rglob("*.md")) if not (p.parent == wiki and p.name in system)]
-
-
-def domain_errors(pages: list[Path], root: Path) -> list[str]:
-    overview = root / "wiki" / "overview.md"
-    if not overview.is_file():
-        return ["missing wiki/overview.md"]
-    domain = metadata(overview.read_text(encoding="utf-8")).get("Domain")
-    if not domain:
-        return ["wiki/overview.md must declare a Domain"]
-    errors = []
-    for page in pages:
-        value = metadata(page.read_text(encoding="utf-8")).get("Domain")
-        if value and value != domain:
-            errors.append(f"Domain {value} does not match overview domain {domain}: {page.relative_to(root)}")
-    return errors
 
 
 def duplicate_entities(pages: list[Path], root: Path) -> list[str]:
@@ -374,7 +359,7 @@ def main(argv: list[str]) -> int:
         return 1
     pages = content_pages(root / "wiki")
     findings: dict[Path | None, list[str]] = {page: check_page(page, root, schema) for page in pages}
-    findings[None] = schema_errors(schema) + duplicate_entities(pages, root) + domain_errors(pages, root) + index_errors(root, pages) + coverage_errors(root, pages, schema)
+    findings[None] = schema_errors(schema) + duplicate_entities(pages, root) + index_errors(root, pages) + coverage_errors(root, pages, schema)
     issues = sum(len(errors) for errors in findings.values())
     print("# Schema check")
     for page, errors in findings.items():

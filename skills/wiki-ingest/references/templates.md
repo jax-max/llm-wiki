@@ -18,15 +18,13 @@
 # {Title}
 
 > Type: {Entity | Workflow | Rule | StateMachine | Event}
-> Domain: {domain, matching wiki/overview.md}
 > Raw: [{source}](../../raw/{source-domain}/{file}.md)
 > Updated: {YYYY-MM-DD}
 
 ```
 
 Use the metadata block on every typed page. Add one `> Raw:` line per source
-when a page is grounded in multiple files. `Domain` must match
-`wiki/overview.md`.
+when a page is grounded in multiple files.
 `Aliases` and `Sources` may be added when useful. `Updated` is required: write
 today's date every time a page is created or recompiled, and it must not
 predate the latest ingest of any linked Raw (the evidence checker verifies

@@ -1,7 +1,6 @@
 # 库存
 
 > Type: Entity
-> Domain: lottery-platform
 > Aliases: Stock
 > Sources: 美团技术团队（文彬、子维），2017-12-22
 > Raw: [领域驱动设计在互联网业务开发中的实践](../../raw/meituan-tech/2026-09-18-ddd-in-practice.md)

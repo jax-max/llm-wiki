@@ -24,10 +24,9 @@ Recording effective dates does not provide automatic temporal-validity reasoning
 
 ## Required Metadata
 
-`Type`, `Raw`, `Updated`, and `Domain` are required blockquote fields on every
-typed page. `Raw` must contain one or more links that resolve under `raw/`.
-Each wiki project is one bounded domain: `Domain` must match the `Domain` of
-`wiki/overview.md`; `Aliases` and `Sources` are optional.
+`Type`, `Raw`, and `Updated` are required blockquote fields on every
+typed page. `Raw` must contain one or more links that resolve under `raw/`;
+`Aliases` and `Sources` are optional.
 `Updated` is the page's last compile date, written at every create or
 recompile, and must not predate the latest ingest of any linked Raw — the
 evidence checker enforces this against ingest dates anchored by SHA-256

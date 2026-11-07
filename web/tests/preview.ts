@@ -38,7 +38,7 @@ const ingestAgent = async function* (input: { cwd: string }) {
   const pageRel = "wiki/rules/fixture-rule.md";
   await writeFile(
     path.join(input.cwd, pageRel),
-    "# Fixture 规则\n\n> Type: Rule\n> Domain: lottery-platform\n> Raw: [demo spec](../../raw/example-com/2026-10-15-demo-spec.md)\n> Updated: 2026-10-15\n\n## Rule\n\n演示规则。\n\n## Relations\n\n- governs: [用户参与抽奖流程](../workflows/user-participation.md)\n",
+    "# Fixture 规则\n\n> Type: Rule\n> Raw: [demo spec](../../raw/example-com/2026-10-15-demo-spec.md)\n> Updated: 2026-10-15\n\n## Rule\n\n演示规则。\n\n## Relations\n\n- governs: [用户参与抽奖流程](../workflows/user-participation.md)\n",
   );
   // Upload jobs land in raw/uploads (written by the server); log them too.
   const entries: string[] = [];
